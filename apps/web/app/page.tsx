@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useState } from "react";
+import Link from "next/link";
 import { useAuth } from "@/features/auth/useAuth";
 
 export default function HomePage() {
@@ -82,6 +83,13 @@ export default function HomePage() {
           </section>
 
           <section className="feature-grid" aria-label="Dashboard sections">
+            <article className="feature-card">
+              <h3>Labs</h3>
+              <p>Browse practical lab challenges with estimated time and difficulty before starting.</p>
+              <Link href="/labs" className="button secondary feature-card-action">
+                Open Labs
+              </Link>
+            </article>
             <article className="feature-card">
               <h3>Learning Content</h3>
               <p>Browse tracks, levels, and challenge sets tailored to your current progress.</p>
