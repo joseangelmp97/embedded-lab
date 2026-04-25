@@ -1,22 +1,9 @@
+import Link from "next/link";
+import { formatDifficultyLabel, formatStatusLabel } from "@/features/labs/labFormatters";
 import type { Lab } from "@/features/labs/types";
 
 interface LabCardProps {
   lab: Lab;
-}
-
-function formatDifficultyLabel(difficulty: Lab["difficulty"]): string {
-  return difficulty.charAt(0).toUpperCase() + difficulty.slice(1);
-}
-
-function formatStatusLabel(status: string): string {
-  if (!status.trim()) {
-    return "Unknown";
-  }
-
-  return status
-    .split("_")
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(" ");
 }
 
 export function LabCard({ lab }: LabCardProps) {
@@ -41,6 +28,12 @@ export function LabCard({ lab }: LabCardProps) {
           <dd>{lab.estimated_minutes} min</dd>
         </div>
       </dl>
+
+      <div className="lab-card-actions">
+        <Link href={`/labs/${lab.id}`} className="button secondary labs-inline-button">
+          View details
+        </Link>
+      </div>
     </article>
   );
 }

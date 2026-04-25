@@ -8,3 +8,9 @@ export async function fetchLabs(): Promise<Lab[]> {
     auth: true
   });
 }
+
+export async function fetchLabById(labId: string): Promise<Lab> {
+  return apiRequest<Lab>(`${LABS_BASE_PATH}/${labId}`, {
+    auth: true
+  });
+}

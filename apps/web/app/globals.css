@@ -316,6 +316,11 @@ body {
   gap: 0.85rem;
 }
 
+.lab-card-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
 .lab-card-header {
   display: flex;
   justify-content: space-between;
@@ -369,6 +374,20 @@ body {
 .lab-meta-list dd {
   margin: 0.25rem 0 0;
   font-weight: 600;
+}
+
+.lab-detail-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 1rem;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.05);
+  display: grid;
+  gap: 1rem;
+}
+
+.lab-id-value {
+  word-break: break-all;
 }
 
 @media (min-width: 720px) {
