@@ -1,6 +1,9 @@
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, EmailStr
+from pydantic import BaseModel, ConfigDict, EmailStr, field_validator
+
+
+MAX_BCRYPT_PASSWORD_BYTES = 72
 
 
 class UserCreate(BaseModel):
@@ -8,10 +11,30 @@ class UserCreate(BaseModel):
     password: str
     display_name: str | None = None
 
+    @field_validator("password")
+    @classmethod
+    def validate_password_bcrypt_limit(cls, value: str) -> str:
+        if len(value.encode("utf-8")) > MAX_BCRYPT_PASSWORD_BYTES:
+            raise ValueError(
+                "Password must be at most 72 bytes for bcrypt compatibility",
+            )
+
+        return value
+
 
 class UserLogin(BaseModel):
     email: EmailStr
     password: str
+
+    @field_validator("password")
+    @classmethod
+    def validate_password_bcrypt_limit(cls, value: str) -> str:
+        if len(value.encode("utf-8")) > MAX_BCRYPT_PASSWORD_BYTES:
+            raise ValueError(
+                "Password must be at most 72 bytes for bcrypt compatibility",
+            )
+
+        return value
 
 
 class UserResponse(BaseModel):

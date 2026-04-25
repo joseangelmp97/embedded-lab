@@ -15,6 +15,8 @@ app/modules/attempts/router.py
 app/modules/auth/__init__.py
 app/modules/auth/router.py
 app/modules/auth/security.py
+app/modules/auth/services/__init__.py
+app/modules/auth/services/auth_service.py
 app/modules/content/__init__.py
 app/modules/content/router.py
 app/modules/evaluation/__init__.py
@@ -36,6 +38,9 @@ app/shared/config/__init__.py
 app/shared/config/settings.py
 app/shared/db/__init__.py
 app/shared/db/base.py
+app/shared/db/dependencies.py
+app/shared/db/models.py
+app/shared/db/session.py
 embedded_lab_api.egg-info/PKG-INFO
 embedded_lab_api.egg-info/SOURCES.txt
 embedded_lab_api.egg-info/dependency_links.txt
