@@ -1,4 +1,4 @@
-import type { Lab } from "@/features/labs/types";
+import type { Lab, LabProgressStatus } from "@/features/labs/types";
 
 export function formatDifficultyLabel(difficulty: Lab["difficulty"]): string {
   return difficulty.charAt(0).toUpperCase() + difficulty.slice(1);
@@ -26,4 +26,17 @@ export function formatTimestamp(isoDate: string): string {
     dateStyle: "medium",
     timeStyle: "short"
   }).format(date);
+}
+
+export function formatLabProgressStatusLabel(status: LabProgressStatus): string {
+  switch (status) {
+    case "not_started":
+      return "Not started";
+    case "in_progress":
+      return "In progress";
+    case "completed":
+      return "Completed";
+    default:
+      return "Unknown";
+  }
 }

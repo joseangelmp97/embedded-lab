@@ -3,6 +3,8 @@
 import { FormEvent, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/features/auth/useAuth";
+import { useLabProgress } from "@/features/labs/useLabProgress";
+import { useLabs } from "@/features/labs/useLabs";
 
 export default function HomePage() {
   const {
@@ -39,6 +41,19 @@ export default function HomePage() {
   };
 
   const displayName = user?.display_name?.trim() || "Learner";
+  const { labs, isLoading: isLabsLoading, error: labsError } = useLabs(Boolean(user));
+  const {
+    progressByLabId,
+    isLoading: isProgressLoading,
+    loadingError: progressError,
+    reload: reloadLabProgress
+  } = useLabProgress(Boolean(user));
+
+  const totalLabs = labs.length;
+  const completedLabs = labs.reduce((completedCount, lab) => {
+    return progressByLabId[lab.id]?.status === "completed" ? completedCount + 1 : completedCount;
+  }, 0);
+  const progressPercent = totalLabs > 0 ? Math.round((completedLabs / totalLabs) * 100) : 0;
 
   if (user) {
     return (
@@ -83,6 +98,30 @@ export default function HomePage() {
           </section>
 
           <section className="feature-grid" aria-label="Dashboard sections">
+            <article className="feature-card progress-summary-card">
+              <h3>Lab Progress</h3>
+              <p>Track completed labs and continue from where you left off.</p>
+
+              {isLabsLoading || isProgressLoading ? <p className="feedback">Loading lab progress...</p> : null}
+              {labsError ? <p className="feedback error">{labsError}</p> : null}
+              {progressError ? <p className="feedback error">{progressError}</p> : null}
+
+              {!isLabsLoading && !isProgressLoading && !labsError && !progressError ? (
+                <div className="progress-summary-content" aria-label="Lab completion summary">
+                  <p className="progress-summary-count">
+                    <strong>{completedLabs}</strong> / {totalLabs} completed
+                  </p>
+                  <div className="progress-bar-track" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={progressPercent}>
+                    <div className="progress-bar-fill" style={{ width: `${progressPercent}%` }} />
+                  </div>
+                  <p className="progress-summary-percent">{progressPercent}% complete</p>
+                </div>
+              ) : null}
+
+              <button type="button" className="button secondary feature-card-action labs-inline-button" onClick={() => void reloadLabProgress()}>
+                Refresh progress
+              </button>
+            </article>
             <article className="feature-card">
               <h3>Labs</h3>
               <p>Browse practical lab challenges with estimated time and difficulty before starting.</p>

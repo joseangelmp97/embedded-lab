@@ -3,11 +3,22 @@
 import Link from "next/link";
 import { useAuth } from "@/features/auth/useAuth";
 import { LabCard } from "@/features/labs/components/LabCard";
+import { useLabProgress } from "@/features/labs/useLabProgress";
 import { useLabs } from "@/features/labs/useLabs";
 
 export default function LabsPage() {
   const { user, isInitializing, handleLogout } = useAuth();
   const { labs, isLoading, error, reload } = useLabs(Boolean(user));
+  const {
+    isLoading: isProgressLoading,
+    loadingError: progressLoadingError,
+    actionError: progressActionError,
+    pendingActions,
+    getLabStatus,
+    reload: reloadProgress,
+    startLabProgress,
+    completeLabProgress
+  } = useLabProgress(Boolean(user));
 
   const displayName = user?.display_name?.trim() || "Learner";
 
@@ -63,11 +74,17 @@ export default function LabsPage() {
             <button type="button" className="button secondary labs-inline-button" onClick={() => void reload()}>
               Refresh labs
             </button>
+            <button type="button" className="button secondary labs-inline-button" onClick={() => void reloadProgress()}>
+              Refresh progress
+            </button>
           </div>
         </section>
 
         {isLoading ? <p className="feedback">Loading labs...</p> : null}
         {error ? <p className="feedback error">{error}</p> : null}
+        {isProgressLoading ? <p className="feedback">Loading your lab progress...</p> : null}
+        {progressLoadingError ? <p className="feedback error">{progressLoadingError}</p> : null}
+        {progressActionError ? <p className="feedback error">{progressActionError}</p> : null}
 
         {!isLoading && !error && labs.length === 0 ? (
           <section className="welcome-card" aria-live="polite">
@@ -79,7 +96,14 @@ export default function LabsPage() {
         {!isLoading && !error && labs.length > 0 ? (
           <section className="labs-grid" aria-label="Labs list">
             {labs.map((lab) => (
-              <LabCard key={lab.id} lab={lab} />
+              <LabCard
+                key={lab.id}
+                lab={lab}
+                progressStatus={getLabStatus(lab.id)}
+                isSubmitting={Boolean(pendingActions[lab.id])}
+                onStart={() => void startLabProgress(lab.id)}
+                onComplete={() => void completeLabProgress(lab.id)}
+              />
             ))}
           </section>
         ) : null}

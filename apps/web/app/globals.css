@@ -318,7 +318,9 @@ body {
 
 .lab-card-actions {
   display: flex;
+  flex-wrap: wrap;
   justify-content: flex-end;
+  gap: 0.6rem;
 }
 
 .lab-card-header {
@@ -388,6 +390,64 @@ body {
 
 .lab-id-value {
   word-break: break-all;
+}
+
+.progress-badge {
+  border: 1px solid #cbd5e1;
+  border-radius: 999px;
+  padding: 0.2rem 0.55rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  background: #f8fafc;
+  color: #334155;
+}
+
+.progress-badge.progress-not_started {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+}
+
+.progress-badge.progress-in_progress {
+  background: #eff6ff;
+  border-color: #93c5fd;
+  color: #1e3a8a;
+}
+
+.progress-badge.progress-completed {
+  background: #ecfdf5;
+  border-color: #86efac;
+  color: #166534;
+}
+
+.progress-summary-card {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.progress-summary-content {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.progress-summary-count,
+.progress-summary-percent {
+  margin: 0;
+  color: #334155;
+}
+
+.progress-bar-track {
+  width: 100%;
+  height: 0.7rem;
+  border-radius: 999px;
+  background: #e2e8f0;
+  overflow: hidden;
+}
+
+.progress-bar-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #6366f1 0%, #22c55e 100%);
+  transition: width 0.2s ease;
 }
 
 @media (min-width: 720px) {

@@ -2,8 +2,14 @@
 
 import Link from "next/link";
 import { useAuth } from "@/features/auth/useAuth";
-import { formatDifficultyLabel, formatStatusLabel, formatTimestamp } from "@/features/labs/labFormatters";
+import {
+  formatDifficultyLabel,
+  formatLabProgressStatusLabel,
+  formatStatusLabel,
+  formatTimestamp
+} from "@/features/labs/labFormatters";
 import { useLabDetail } from "@/features/labs/useLabDetail";
+import { useLabProgress } from "@/features/labs/useLabProgress";
 
 interface LabDetailPageProps {
   params: {
@@ -14,6 +20,16 @@ interface LabDetailPageProps {
 export default function LabDetailPage({ params }: LabDetailPageProps) {
   const { user, isInitializing, handleLogout } = useAuth();
   const { lab, isLoading, error, reload } = useLabDetail(params.id, Boolean(user));
+  const {
+    isLoading: isProgressLoading,
+    loadingError: progressLoadingError,
+    actionError: progressActionError,
+    pendingActions,
+    getLabStatus,
+    startLabProgress,
+    completeLabProgress,
+    reload: reloadProgress
+  } = useLabProgress(Boolean(user));
 
   const displayName = user?.display_name?.trim() || "Learner";
 
@@ -69,11 +85,17 @@ export default function LabDetailPage({ params }: LabDetailPageProps) {
             <button type="button" className="button secondary labs-inline-button" onClick={() => void reload()}>
               Refresh details
             </button>
+            <button type="button" className="button secondary labs-inline-button" onClick={() => void reloadProgress()}>
+              Refresh progress
+            </button>
           </div>
         </section>
 
         {isLoading ? <p className="feedback">Loading lab details...</p> : null}
         {error ? <p className="feedback error">{error}</p> : null}
+        {isProgressLoading ? <p className="feedback">Loading your lab progress...</p> : null}
+        {progressLoadingError ? <p className="feedback error">{progressLoadingError}</p> : null}
+        {progressActionError ? <p className="feedback error">{progressActionError}</p> : null}
 
         {!isLoading && !error && lab ? (
           <article className="lab-detail-card" aria-label={`Lab ${lab.title}`}>
@@ -111,7 +133,38 @@ export default function LabDetailPage({ params }: LabDetailPageProps) {
                 <dt>Lab id</dt>
                 <dd className="lab-id-value">{lab.id}</dd>
               </div>
+              <div>
+                <dt>Your progress</dt>
+                <dd>
+                  <span className={`progress-badge progress-${getLabStatus(lab.id)}`}>
+                    {formatLabProgressStatusLabel(getLabStatus(lab.id))}
+                  </span>
+                </dd>
+              </div>
             </dl>
+
+            <div className="lab-card-actions">
+              <button
+                type="button"
+                className="button secondary labs-inline-button"
+                onClick={() => void startLabProgress(lab.id)}
+                disabled={getLabStatus(lab.id) !== "not_started" || Boolean(pendingActions[lab.id])}
+              >
+                {pendingActions[lab.id] ? "Saving..." : getLabStatus(lab.id) === "not_started" ? "Start lab" : "Started"}
+              </button>
+              <button
+                type="button"
+                className="button secondary labs-inline-button"
+                onClick={() => void completeLabProgress(lab.id)}
+                disabled={getLabStatus(lab.id) === "completed" || Boolean(pendingActions[lab.id])}
+              >
+                {pendingActions[lab.id]
+                  ? "Saving..."
+                  : getLabStatus(lab.id) === "completed"
+                    ? "Completed"
+                    : "Mark as completed"}
+              </button>
+            </div>
           </article>
         ) : null}
       </main>
