@@ -754,9 +754,32 @@ Notes:
 
 ---
 
-## 10) Labs and Lab Progress Endpoints (Implemented)
+## 10) Paths, Labs and Lab Progress Endpoints (Implemented)
 
 These endpoints are protected and require `Authorization: Bearer <token>`.
+
+### `GET /api/v1/paths`
+
+Returns all learning paths ordered by `order`.
+
+Response `200`:
+
+```json
+[
+  {
+    "id": "247f7a42-17d9-4f08-8fc3-7284fdbbe93c",
+    "name": "Embedded Fundamentals",
+    "description": "Core embedded concepts: digital I/O, timing basics, and practical hardware interactions.",
+    "order": 1
+  }
+]
+```
+
+### `GET /api/v1/paths/{path_id}/labs`
+
+Returns labs associated with a specific path ordered by `order_index`.
+
+- `404` when the path does not exist (`detail: "Path not found"`).
 
 ### `GET /api/v1/labs`
 

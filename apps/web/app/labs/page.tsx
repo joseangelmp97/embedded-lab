@@ -4,11 +4,11 @@ import Link from "next/link";
 import { useAuth } from "@/features/auth/useAuth";
 import { LabCard } from "@/features/labs/components/LabCard";
 import { useLabProgress } from "@/features/labs/useLabProgress";
-import { useLabs } from "@/features/labs/useLabs";
+import { usePathLabs } from "@/features/paths/usePathLabs";
 
 export default function LabsPage() {
   const { user, isInitializing, handleLogout } = useAuth();
-  const { labs, isLoading, error, reload } = useLabs(Boolean(user));
+  const { pathLabs, isLoading, error, reload } = usePathLabs(Boolean(user));
   const {
     isLoading: isProgressLoading,
     loadingError: progressLoadingError,
@@ -65,14 +65,14 @@ export default function LabsPage() {
 
       <main className="shell-main labs-main">
         <section className="welcome-card" aria-label="Labs summary">
-          <h2>Available labs</h2>
-          <p className="subtitle">Explore hands-on exercises and keep progressing through practical scenarios.</p>
+          <h2>Learning paths</h2>
+          <p className="subtitle">Explore labs grouped by path and keep progressing through practical embedded scenarios.</p>
           <div className="labs-page-actions">
             <Link href="/" className="button secondary labs-inline-button">
               Back to dashboard
             </Link>
             <button type="button" className="button secondary labs-inline-button" onClick={() => void reload()}>
-              Refresh labs
+              Refresh paths
             </button>
             <button type="button" className="button secondary labs-inline-button" onClick={() => void reloadProgress()}>
               Refresh progress
@@ -80,33 +80,49 @@ export default function LabsPage() {
           </div>
         </section>
 
-        {isLoading ? <p className="feedback">Loading labs...</p> : null}
+        {isLoading ? <p className="feedback">Loading learning paths...</p> : null}
         {error ? <p className="feedback error">{error}</p> : null}
         {isProgressLoading ? <p className="feedback">Loading your lab progress...</p> : null}
         {progressLoadingError ? <p className="feedback error">{progressLoadingError}</p> : null}
         {progressActionError ? <p className="feedback error">{progressActionError}</p> : null}
 
-        {!isLoading && !error && labs.length === 0 ? (
+        {!isLoading && !error && pathLabs.length === 0 ? (
           <section className="welcome-card" aria-live="polite">
-            <h2>No labs available</h2>
-            <p className="subtitle">New labs will appear here as soon as they are published.</p>
+            <h2>No learning paths available</h2>
+            <p className="subtitle">New paths and labs will appear here as soon as they are published.</p>
           </section>
         ) : null}
 
-        {!isLoading && !error && labs.length > 0 ? (
-          <section className="labs-grid" aria-label="Labs list">
-            {labs.map((lab) => (
-              <LabCard
-                key={lab.id}
-                lab={lab}
-                progressStatus={getLabStatus(lab.id)}
-                isSubmitting={Boolean(pendingActions[lab.id])}
-                onStart={() => void startLabProgress(lab.id)}
-                onComplete={() => void completeLabProgress(lab.id)}
-              />
-            ))}
-          </section>
-        ) : null}
+        {!isLoading && !error && pathLabs.length > 0
+          ? pathLabs.map(({ path, labs }) => (
+              <section key={path.id} className="path-group" aria-label={`Path ${path.name}`}>
+                <header className="welcome-card path-group-header">
+                  <h2>{path.name}</h2>
+                  <p className="subtitle">{path.description}</p>
+                </header>
+
+                {labs.length === 0 ? (
+                  <section className="welcome-card" aria-live="polite">
+                    <h2>No labs in this path</h2>
+                    <p className="subtitle">Labs will appear here as soon as they are assigned to this path.</p>
+                  </section>
+                ) : (
+                  <section className="labs-grid" aria-label={`${path.name} labs`}>
+                    {labs.map((lab) => (
+                      <LabCard
+                        key={lab.id}
+                        lab={lab}
+                        progressStatus={getLabStatus(lab.id)}
+                        isSubmitting={Boolean(pendingActions[lab.id])}
+                        onStart={() => void startLabProgress(lab.id)}
+                        onComplete={() => void completeLabProgress(lab.id)}
+                      />
+                    ))}
+                  </section>
+                )}
+              </section>
+            ))
+          : null}
       </main>
     </div>
   );

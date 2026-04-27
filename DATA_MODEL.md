@@ -193,6 +193,7 @@ Purpose:
 
 Main fields:
 - `id` (stable string slug)
+- `path_id` (nullable reference to `Path`)
 - `title`
 - `description`
 - `difficulty` (`beginner`, `intermediate`, `advanced`)
@@ -203,7 +204,26 @@ Main fields:
 - `updated_at`
 
 Relationships:
+- Many-to-one with `Path`
 - One `Lab` has many `LabProgress` records
+
+---
+
+## Path
+
+Purpose:
+- Represents a top-level learning path used to group labs into guided sequences.
+
+Main fields:
+- `id`
+- `name`
+- `description`
+- `order`
+- `created_at`
+- `updated_at`
+
+Relationships:
+- One `Path` has many `Lab`
 
 ---
 
@@ -366,6 +386,7 @@ Relationships:
 Primary one-to-many relationships:
 
 - `Track` -> `Level` (1:N)
+- `Path` -> `Lab` (1:N)
 - `Level` -> `Challenge` (1:N)
 - `Challenge` -> `Question` (1:N)
 - `User` -> `Attempt` (1:N)
@@ -378,6 +399,7 @@ Primary one-to-many relationships:
 Primary many-to-one relationships:
 
 - `Level` -> `Track` (N:1)
+- `Lab` -> `Path` (N:1)
 - `Challenge` -> `Level` (N:1)
 - `Question` -> `Challenge` (N:1)
 - `Attempt` -> `User` (N:1)

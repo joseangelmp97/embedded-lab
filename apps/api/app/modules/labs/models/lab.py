@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import DateTime, Integer, String, func
+from sqlalchemy import DateTime, ForeignKey, Integer, String, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.shared.db.base import Base
@@ -16,6 +16,7 @@ class Lab(Base):
     estimated_minutes: Mapped[int] = mapped_column(Integer, nullable=False)
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="published")
     order_index: Mapped[int] = mapped_column(Integer, nullable=False)
+    path_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("paths.id"), nullable=True, index=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,

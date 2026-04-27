@@ -306,6 +306,15 @@ body {
   gap: 1rem;
 }
 
+.path-group {
+  display: grid;
+  gap: 1rem;
+}
+
+.path-group-header {
+  gap: 0.5rem;
+}
+
 .lab-card {
   background: #ffffff;
   border: 1px solid #e2e8f0;
