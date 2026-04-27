@@ -3,8 +3,9 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from app.api.router import api_router
+from app.modules.labs.services.lab_service import seed_initial_labs
 from app.shared.config.settings import get_settings
-from app.shared.db.session import init_db
+from app.shared.db.session import SessionLocal, init_db
 
 
 settings = get_settings()
@@ -13,6 +14,11 @@ settings = get_settings()
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     init_db()
+    db = SessionLocal()
+    try:
+        seed_initial_labs(db=db)
+    finally:
+        db.close()
     yield
 
 app = FastAPI(

@@ -751,3 +751,81 @@ Notes:
 - `details` is optional and should be included for validation and conflict scenarios.
 - `request_id` is required in all error responses.
 - Error messages must avoid leaking sensitive internals.
+
+---
+
+## 10) Labs and Lab Progress Endpoints (Implemented)
+
+These endpoints are protected and require `Authorization: Bearer <token>`.
+
+### `GET /api/v1/labs`
+
+Returns all available labs ordered by `order_index`.
+
+Response `200`:
+
+```json
+[
+  {
+    "id": "gpio-led-basics",
+    "title": "GPIO and LED basics",
+    "description": "Learn GPIO output fundamentals by controlling an LED with a microcontroller pin.",
+    "difficulty": "beginner",
+    "estimated_minutes": 25,
+    "status": "published",
+    "order_index": 1,
+    "created_at": "2026-04-27T10:00:00Z",
+    "updated_at": "2026-04-27T10:00:00Z"
+  }
+]
+```
+
+### `GET /api/v1/labs/{lab_id}`
+
+Returns one lab by id.
+
+- `404` when the lab does not exist (`detail: "Lab not found"`).
+
+### `GET /api/v1/me/lab-progress`
+
+Returns lab progress rows for the authenticated user.
+
+Response `200`:
+
+```json
+[
+  {
+    "id": "8ed6d0eb-c53d-4b1f-9b8f-b0e8f916c33a",
+    "user_id": "96b2b1f8-499f-4cef-a76a-44295f38d6be",
+    "lab_id": "gpio-led-basics",
+    "status": "in_progress",
+    "started_at": "2026-04-27T10:05:00Z",
+    "completed_at": null,
+    "created_at": "2026-04-27T10:05:00Z",
+    "updated_at": "2026-04-27T10:05:00Z"
+  }
+]
+```
+
+### `POST /api/v1/labs/{lab_id}/start`
+
+Starts lab progress for the authenticated user.
+
+- Idempotent: if progress already exists for `(user_id, lab_id)`, returns existing row.
+- `404` when the lab does not exist.
+
+### `POST /api/v1/labs/{lab_id}/complete`
+
+Marks lab progress as completed.
+
+- Creates progress if missing.
+- Sets `status=completed`, `completed_at=now`, and ensures `started_at` is populated.
+- `404` when the lab does not exist.
+
+### `POST /api/v1/labs/{lab_id}/reopen`
+
+Reopens lab progress.
+
+- If status is `completed`, sets `status=in_progress` and clears `completed_at`.
+- If missing, creates progress in `in_progress` state.
+- `404` when the lab does not exist.

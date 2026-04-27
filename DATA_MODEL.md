@@ -186,6 +186,51 @@ Relationships:
 
 ---
 
+## Lab
+
+Purpose:
+- Represents a practical hands-on embedded exercise shown in the Labs UI.
+
+Main fields:
+- `id` (stable string slug)
+- `title`
+- `description`
+- `difficulty` (`beginner`, `intermediate`, `advanced`)
+- `estimated_minutes`
+- `status` (`draft`, `published`, `archived`)
+- `order_index`
+- `created_at`
+- `updated_at`
+
+Relationships:
+- One `Lab` has many `LabProgress` records
+
+---
+
+## LabProgress
+
+Purpose:
+- Stores user-specific progress state for each lab.
+
+Main fields:
+- `id`
+- `user_id`
+- `lab_id`
+- `status` (`not_started`, `in_progress`, `completed`)
+- `started_at` (nullable)
+- `completed_at` (nullable)
+- `created_at`
+- `updated_at`
+
+Constraints:
+- Unique progress per `(user_id, lab_id)`.
+
+Relationships:
+- Many-to-one with `User`
+- Many-to-one with `Lab`
+
+---
+
 ## Attempt
 
 Purpose:
@@ -503,3 +548,15 @@ Use these values consistently across data model, architecture, and API contract.
 
 - `active`
 - `suspended`
+
+### lab_status
+
+- `draft`
+- `published`
+- `archived`
+
+### lab_progress_status
+
+- `not_started`
+- `in_progress`
+- `completed`
