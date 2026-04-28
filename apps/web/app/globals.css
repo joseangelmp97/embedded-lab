@@ -473,6 +473,54 @@ body {
   transition: width 0.2s ease;
 }
 
+.path-progress-list {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.path-progress-summary {
+  display: grid;
+  gap: 0.5rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #f8fafc;
+  padding: 0.75rem;
+}
+
+.path-progress-summary-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.path-progress-summary-title,
+.path-progress-summary-percent,
+.path-progress-summary-description,
+.path-progress-summary-meta {
+  margin: 0;
+}
+
+.path-progress-summary-title {
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.path-progress-summary-percent {
+  font-weight: 700;
+  color: #334155;
+}
+
+.path-progress-summary-description,
+.path-progress-summary-meta {
+  color: #475569;
+  font-size: 0.9rem;
+}
+
+.path-progress-summary.is-compact .path-progress-summary-description {
+  display: none;
+}
+
 @media (min-width: 720px) {
   .public-auth-page {
     grid-template-columns: minmax(0, 1fr) minmax(0, 560px);

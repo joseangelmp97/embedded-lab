@@ -18,3 +18,14 @@ class LabProgressResponse(BaseModel):
     updated_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class PathProgressSummaryResponse(BaseModel):
+    path_id: str
+    path_name: str
+    path_description: str
+    total_labs: int
+    completed_labs: int
+    in_progress_labs: int
+    locked_labs: int
+    completion_percentage: int

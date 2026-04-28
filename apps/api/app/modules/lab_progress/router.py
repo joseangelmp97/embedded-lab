@@ -2,9 +2,10 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.modules.auth.dependencies import get_current_user
-from app.modules.lab_progress.schemas.lab_progress import LabProgressResponse
+from app.modules.lab_progress.schemas.lab_progress import LabProgressResponse, PathProgressSummaryResponse
 from app.modules.lab_progress.services.lab_progress_service import (
     complete_lab_progress,
+    list_user_path_progress_summaries,
     list_user_lab_progress,
     reopen_lab_progress,
     start_lab_progress,
@@ -23,6 +24,15 @@ def get_my_lab_progress(
 ) -> list[LabProgressResponse]:
     progress_rows = list_user_lab_progress(db=db, user_id=current_user.id)
     return [LabProgressResponse.model_validate(progress_row) for progress_row in progress_rows]
+
+
+@router.get("/me/path-progress", response_model=list[PathProgressSummaryResponse])
+def get_my_path_progress(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> list[PathProgressSummaryResponse]:
+    summaries = list_user_path_progress_summaries(db=db, user_id=current_user.id)
+    return [PathProgressSummaryResponse.model_validate(summary) for summary in summaries]
 
 
 @router.post("/labs/{lab_id}/start", response_model=LabProgressResponse)

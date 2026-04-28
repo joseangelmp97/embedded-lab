@@ -5,6 +5,8 @@ import Link from "next/link";
 import { useAuth } from "@/features/auth/useAuth";
 import { useLabProgress } from "@/features/labs/useLabProgress";
 import { useLabs } from "@/features/labs/useLabs";
+import { PathProgressSummary } from "@/features/paths/components/PathProgressSummary";
+import { usePathProgress } from "@/features/paths/usePathProgress";
 
 export default function HomePage() {
   const {
@@ -48,6 +50,12 @@ export default function HomePage() {
     loadingError: progressError,
     reload: reloadLabProgress
   } = useLabProgress(Boolean(user));
+  const {
+    pathProgress,
+    isLoading: isPathProgressLoading,
+    error: pathProgressError,
+    reload: reloadPathProgress
+  } = usePathProgress(Boolean(user));
 
   const totalLabs = labs.length;
   const completedLabs = labs.reduce((completedCount, lab) => {
@@ -120,6 +128,29 @@ export default function HomePage() {
 
               <button type="button" className="button secondary feature-card-action labs-inline-button" onClick={() => void reloadLabProgress()}>
                 Refresh progress
+              </button>
+            </article>
+            <article className="feature-card progress-summary-card">
+              <h3>Path Progress</h3>
+              <p>Follow completion across learning paths and focus on the next milestone.</p>
+
+              {isPathProgressLoading ? <p className="feedback">Loading path progress...</p> : null}
+              {pathProgressError ? <p className="feedback error">{pathProgressError}</p> : null}
+
+              {!isPathProgressLoading && !pathProgressError && pathProgress.length === 0 ? (
+                <p className="feedback">No path progress available yet.</p>
+              ) : null}
+
+              {!isPathProgressLoading && !pathProgressError && pathProgress.length > 0 ? (
+                <div className="path-progress-list" aria-label="Path progress summary">
+                  {pathProgress.map((summary) => (
+                    <PathProgressSummary key={summary.path_id} summary={summary} compact />
+                  ))}
+                </div>
+              ) : null}
+
+              <button type="button" className="button secondary feature-card-action labs-inline-button" onClick={() => void reloadPathProgress()}>
+                Refresh path progress
               </button>
             </article>
             <article className="feature-card">

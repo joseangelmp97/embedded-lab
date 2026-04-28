@@ -831,6 +831,33 @@ Response `200`:
 ]
 ```
 
+### `GET /api/v1/me/path-progress`
+
+Returns one progress summary per path for the authenticated user.
+
+Response `200`:
+
+```json
+[
+  {
+    "path_id": "fcb79cb6-18f6-4347-a7cb-f8f57c4d4f17",
+    "path_name": "Sensors & IO",
+    "path_description": "Learn reliable input handling and output control with common embedded peripherals.",
+    "total_labs": 2,
+    "completed_labs": 1,
+    "in_progress_labs": 0,
+    "locked_labs": 0,
+    "completion_percentage": 50
+  }
+]
+```
+
+Rules:
+
+- `locked_labs` is derived from prerequisites for the same user.
+- A lab is considered locked when `prerequisite_lab_id` is set and that prerequisite lab is not currently `completed` by the user.
+- `completion_percentage` is an integer in range `0-100` computed as `floor(completed_labs * 100 / total_labs)` and `0` when `total_labs` is `0`.
+
 ### `POST /api/v1/labs/{lab_id}/start`
 
 Starts lab progress for the authenticated user.

@@ -205,6 +205,7 @@ Boundaries:
 2. When the user calls lab start, the lab-progress service validates the lab prerequisite before creating a new progress row.
 3. If the prerequisite lab is not completed by the same user, start is rejected with `403`.
 4. Reopen keeps the same progress row and only changes status timestamps (no cascade cleanup of later labs in this phase).
+5. Path-level progress summaries aggregate per-path lab totals and statuses (`completed`, `in_progress`, `locked`) based on current prerequisite completion state for the same user.
 
 ### Challenge Attempt Flow
 

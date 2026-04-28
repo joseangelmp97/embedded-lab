@@ -5,11 +5,19 @@ import { useAuth } from "@/features/auth/useAuth";
 import { LabCard } from "@/features/labs/components/LabCard";
 import { isLabLocked } from "@/features/labs/labProgressRules";
 import { useLabProgress } from "@/features/labs/useLabProgress";
+import { PathProgressSummary } from "@/features/paths/components/PathProgressSummary";
 import { usePathLabs } from "@/features/paths/usePathLabs";
+import { usePathProgress } from "@/features/paths/usePathProgress";
 
 export default function LabsPage() {
   const { user, isInitializing, handleLogout } = useAuth();
   const { pathLabs, isLoading, error, reload } = usePathLabs(Boolean(user));
+  const {
+    pathProgress,
+    isLoading: isPathProgressLoading,
+    error: pathProgressError,
+    reload: reloadPathProgress
+  } = usePathProgress(Boolean(user));
   const {
     isLoading: isProgressLoading,
     loadingError: progressLoadingError,
@@ -33,6 +41,10 @@ export default function LabsPage() {
   };
 
   const displayName = user?.display_name?.trim() || "Learner";
+  const pathProgressById = pathProgress.reduce<Record<string, (typeof pathProgress)[number]>>((accumulator, summary) => {
+    accumulator[summary.path_id] = summary;
+    return accumulator;
+  }, {});
 
   if (isInitializing) {
     return (
@@ -89,6 +101,9 @@ export default function LabsPage() {
             <button type="button" className="button secondary labs-inline-button" onClick={() => void reloadProgress()}>
               Refresh progress
             </button>
+            <button type="button" className="button secondary labs-inline-button" onClick={() => void reloadPathProgress()}>
+              Refresh path summaries
+            </button>
           </div>
         </section>
 
@@ -97,6 +112,8 @@ export default function LabsPage() {
         {isProgressLoading ? <p className="feedback">Loading your lab progress...</p> : null}
         {progressLoadingError ? <p className="feedback error">{progressLoadingError}</p> : null}
         {progressActionError ? <p className="feedback error">{progressActionError}</p> : null}
+        {isPathProgressLoading ? <p className="feedback">Loading your path progress...</p> : null}
+        {pathProgressError ? <p className="feedback error">{pathProgressError}</p> : null}
 
         {!isLoading && !error && pathLabs.length === 0 ? (
           <section className="welcome-card" aria-live="polite">
@@ -111,6 +128,7 @@ export default function LabsPage() {
                 <header className="welcome-card path-group-header">
                   <h2>{path.name}</h2>
                   <p className="subtitle">{path.description}</p>
+                  {pathProgressById[path.id] ? <PathProgressSummary summary={pathProgressById[path.id]} compact /> : null}
                 </header>
 
                 {labs.length === 0 ? (
