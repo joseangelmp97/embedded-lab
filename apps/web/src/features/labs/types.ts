@@ -5,6 +5,7 @@ export interface Lab {
   id: string;
   title: string;
   description: string;
+  prerequisite_lab_id?: string | null;
   difficulty: LabDifficulty;
   estimated_minutes: number;
   status: string;

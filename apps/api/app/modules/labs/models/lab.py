@@ -17,6 +17,12 @@ class Lab(Base):
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="published")
     order_index: Mapped[int] = mapped_column(Integer, nullable=False)
     path_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("paths.id"), nullable=True, index=True)
+    prerequisite_lab_id: Mapped[str | None] = mapped_column(
+        String(100),
+        ForeignKey("labs.id"),
+        nullable=True,
+        index=True,
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,

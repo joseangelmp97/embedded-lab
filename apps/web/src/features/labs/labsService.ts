@@ -35,3 +35,10 @@ export async function completeLab(labId: string): Promise<LabProgress> {
     auth: true
   });
 }
+
+export async function reopenLab(labId: string): Promise<LabProgress> {
+  return apiRequest<LabProgress>(`${LABS_BASE_PATH}/${labId}/reopen`, {
+    method: "POST",
+    auth: true
+  });
+}

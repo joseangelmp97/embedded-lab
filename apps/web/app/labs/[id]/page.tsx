@@ -8,6 +8,7 @@ import {
   formatStatusLabel,
   formatTimestamp
 } from "@/features/labs/labFormatters";
+import { isLabLocked, LOCKED_LAB_MESSAGE } from "@/features/labs/labProgressRules";
 import { useLabDetail } from "@/features/labs/useLabDetail";
 import { useLabProgress } from "@/features/labs/useLabProgress";
 
@@ -28,10 +29,13 @@ export default function LabDetailPage({ params }: LabDetailPageProps) {
     getLabStatus,
     startLabProgress,
     completeLabProgress,
+    reopenLabProgress,
     reload: reloadProgress
   } = useLabProgress(Boolean(user));
 
   const displayName = user?.display_name?.trim() || "Learner";
+  const labProgressStatus = lab ? getLabStatus(lab.id) : "not_started";
+  const locked = lab ? isLabLocked(lab, getLabStatus) : false;
 
   if (isInitializing) {
     return (
@@ -98,7 +102,7 @@ export default function LabDetailPage({ params }: LabDetailPageProps) {
         {progressActionError ? <p className="feedback error">{progressActionError}</p> : null}
 
         {!isLoading && !error && lab ? (
-          <article className="lab-detail-card" aria-label={`Lab ${lab.title}`}>
+          <article className={`lab-detail-card ${locked ? "is-locked" : ""}`} aria-label={`Lab ${lab.title}`}>
             <div className="lab-card-header">
               <h2>{lab.title}</h2>
               <span className={`status-badge ${lab.status === "published" ? "is-published" : ""}`}>
@@ -107,6 +111,7 @@ export default function LabDetailPage({ params }: LabDetailPageProps) {
             </div>
 
             <p className="lab-card-description">{lab.description}</p>
+            {locked ? <p className="lab-lock-message">{LOCKED_LAB_MESSAGE}</p> : null}
 
             <dl className="lab-meta-list">
               <div>
@@ -136,8 +141,8 @@ export default function LabDetailPage({ params }: LabDetailPageProps) {
               <div>
                 <dt>Your progress</dt>
                 <dd>
-                  <span className={`progress-badge progress-${getLabStatus(lab.id)}`}>
-                    {formatLabProgressStatusLabel(getLabStatus(lab.id))}
+                  <span className={`progress-badge progress-${labProgressStatus}`}>
+                    {formatLabProgressStatusLabel(labProgressStatus)}
                   </span>
                 </dd>
               </div>
@@ -148,22 +153,41 @@ export default function LabDetailPage({ params }: LabDetailPageProps) {
                 type="button"
                 className="button secondary labs-inline-button"
                 onClick={() => void startLabProgress(lab.id)}
-                disabled={getLabStatus(lab.id) !== "not_started" || Boolean(pendingActions[lab.id])}
-              >
-                {pendingActions[lab.id] ? "Saving..." : getLabStatus(lab.id) === "not_started" ? "Start lab" : "Started"}
-              </button>
-              <button
-                type="button"
-                className="button secondary labs-inline-button"
-                onClick={() => void completeLabProgress(lab.id)}
-                disabled={getLabStatus(lab.id) === "completed" || Boolean(pendingActions[lab.id])}
+                disabled={locked || labProgressStatus !== "not_started" || Boolean(pendingActions[lab.id])}
               >
                 {pendingActions[lab.id]
                   ? "Saving..."
-                  : getLabStatus(lab.id) === "completed"
-                    ? "Completed"
-                    : "Mark as completed"}
+                  : locked
+                    ? "Locked"
+                    : labProgressStatus === "not_started"
+                      ? "Start lab"
+                      : labProgressStatus === "completed"
+                        ? "Completed"
+                      : "Started"}
               </button>
+              {labProgressStatus === "completed" ? (
+                <button
+                  type="button"
+                  className="button secondary labs-inline-button"
+                  onClick={() => void reopenLabProgress(lab.id)}
+                  disabled={Boolean(pendingActions[lab.id])}
+                >
+                  {pendingActions[lab.id] ? "Saving..." : "Practice again"}
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="button secondary labs-inline-button"
+                  onClick={() => {
+                    if (window.confirm("Mark this lab as completed?")) {
+                      void completeLabProgress(lab.id);
+                    }
+                  }}
+                  disabled={locked || Boolean(pendingActions[lab.id])}
+                >
+                  {pendingActions[lab.id] ? "Saving..." : "Mark as completed"}
+                </button>
+              )}
             </div>
           </article>
         ) : null}

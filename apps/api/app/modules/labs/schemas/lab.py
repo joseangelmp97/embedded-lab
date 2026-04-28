@@ -16,6 +16,7 @@ class LabResponse(BaseModel):
     estimated_minutes: int
     status: LabStatus
     order_index: int
+    prerequisite_lab_id: str | None
     created_at: datetime
     updated_at: datetime
 

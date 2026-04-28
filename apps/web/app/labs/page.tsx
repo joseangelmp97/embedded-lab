@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useAuth } from "@/features/auth/useAuth";
 import { LabCard } from "@/features/labs/components/LabCard";
+import { isLabLocked } from "@/features/labs/labProgressRules";
 import { useLabProgress } from "@/features/labs/useLabProgress";
 import { usePathLabs } from "@/features/paths/usePathLabs";
 
@@ -17,8 +18,19 @@ export default function LabsPage() {
     getLabStatus,
     reload: reloadProgress,
     startLabProgress,
-    completeLabProgress
+    completeLabProgress,
+    reopenLabProgress
   } = useLabProgress(Boolean(user));
+
+  const handleCompleteLab = (labId: string) => {
+    const shouldComplete = window.confirm("Mark this lab as completed?");
+
+    if (!shouldComplete) {
+      return;
+    }
+
+    void completeLabProgress(labId);
+  };
 
   const displayName = user?.display_name?.trim() || "Learner";
 
@@ -108,16 +120,22 @@ export default function LabsPage() {
                   </section>
                 ) : (
                   <section className="labs-grid" aria-label={`${path.name} labs`}>
-                    {labs.map((lab) => (
-                      <LabCard
-                        key={lab.id}
-                        lab={lab}
-                        progressStatus={getLabStatus(lab.id)}
-                        isSubmitting={Boolean(pendingActions[lab.id])}
-                        onStart={() => void startLabProgress(lab.id)}
-                        onComplete={() => void completeLabProgress(lab.id)}
-                      />
-                    ))}
+                    {labs.map((lab) => {
+                      const locked = isLabLocked(lab, getLabStatus);
+
+                      return (
+                        <LabCard
+                          key={lab.id}
+                          lab={lab}
+                          progressStatus={getLabStatus(lab.id)}
+                          isLocked={locked}
+                          isSubmitting={Boolean(pendingActions[lab.id])}
+                          onStart={() => void startLabProgress(lab.id)}
+                          onComplete={() => handleCompleteLab(lab.id)}
+                          onReopen={() => void reopenLabProgress(lab.id)}
+                        />
+                      );
+                    })}
                   </section>
                 )}
               </section>

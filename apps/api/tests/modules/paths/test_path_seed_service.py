@@ -47,6 +47,15 @@ def test_seed_initial_paths_is_idempotent_and_assigns_labs(tmp_path):
         path_id_by_name = {path.name: path.id for path in all_paths}
         for lab_id, path_name in LAB_PATH_ASSIGNMENTS.items():
             assert all_labs[lab_id].path_id == path_id_by_name[path_name]
+
+        sensors_labs = [
+            lab
+            for lab in sorted(all_labs.values(), key=lambda row: row.order_index)
+            if lab.path_id == path_id_by_name["Sensors & IO"]
+        ]
+        assert len(sensors_labs) == 2
+        assert sensors_labs[0].prerequisite_lab_id is None
+        assert sensors_labs[1].prerequisite_lab_id == sensors_labs[0].id
     finally:
         db.close()
         engine.dispose()

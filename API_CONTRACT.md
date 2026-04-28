@@ -797,6 +797,7 @@ Response `200`:
     "estimated_minutes": 25,
     "status": "published",
     "order_index": 1,
+    "prerequisite_lab_id": null,
     "created_at": "2026-04-27T10:00:00Z",
     "updated_at": "2026-04-27T10:00:00Z"
   }
@@ -835,6 +836,8 @@ Response `200`:
 Starts lab progress for the authenticated user.
 
 - Idempotent: if progress already exists for `(user_id, lab_id)`, returns existing row.
+- Start is allowed only when the lab has no prerequisite, or the prerequisite lab is already completed by the same user.
+- `403` when prerequisite is not completed (`detail` explains which prerequisite lab must be completed first).
 - `404` when the lab does not exist.
 
 ### `POST /api/v1/labs/{lab_id}/complete`

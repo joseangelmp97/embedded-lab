@@ -325,6 +325,13 @@ body {
   gap: 0.85rem;
 }
 
+.lab-card.is-locked,
+.lab-detail-card.is-locked {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+  box-shadow: none;
+}
+
 .lab-card-actions {
   display: flex;
   flex-wrap: wrap;
@@ -365,6 +372,13 @@ body {
   margin: 0;
   color: #475569;
   line-height: 1.55;
+}
+
+.lab-lock-message {
+  margin: 0;
+  color: #475569;
+  font-size: 0.9rem;
+  font-weight: 600;
 }
 
 .lab-meta-list {

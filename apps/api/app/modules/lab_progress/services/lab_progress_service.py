@@ -1,5 +1,6 @@
 from datetime import datetime, timezone
 
+from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -19,7 +20,7 @@ def list_user_lab_progress(db: Session, user_id: str) -> list[LabProgress]:
 
 
 def start_lab_progress(db: Session, user: User, lab_id: str) -> LabProgress:
-    get_lab_by_id(db=db, lab_id=lab_id)
+    lab = get_lab_by_id(db=db, lab_id=lab_id)
 
     progress = db.scalar(
         select(LabProgress).where(
@@ -30,6 +31,22 @@ def start_lab_progress(db: Session, user: User, lab_id: str) -> LabProgress:
 
     if progress is not None:
         return progress
+
+    if lab.prerequisite_lab_id is not None:
+        prerequisite_progress = db.scalar(
+            select(LabProgress).where(
+                LabProgress.user_id == user.id,
+                LabProgress.lab_id == lab.prerequisite_lab_id,
+                LabProgress.status == "completed",
+            ),
+        )
+        if prerequisite_progress is None:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=(
+                    f"Lab is locked. Complete prerequisite lab '{lab.prerequisite_lab_id}' before starting this one."
+                ),
+            )
 
     now = datetime.now(tz=timezone.utc)
     progress = LabProgress(

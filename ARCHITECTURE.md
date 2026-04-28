@@ -199,6 +199,13 @@ Boundaries:
 3. Content module retrieves structured data from database.
 4. API returns normalized content payload for rendering.
 
+### Lab Progression Flow
+
+1. Startup seeding assigns labs to paths and derives linear prerequisites inside each path using `order_index`.
+2. When the user calls lab start, the lab-progress service validates the lab prerequisite before creating a new progress row.
+3. If the prerequisite lab is not completed by the same user, start is rejected with `403`.
+4. Reopen keeps the same progress row and only changes status timestamps (no cascade cleanup of later labs in this phase).
+
 ### Challenge Attempt Flow
 
 1. User submits answer for a challenge question.

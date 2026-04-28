@@ -1,3 +1,5 @@
+from collections import defaultdict
+
 from fastapi import HTTPException, status
 from sqlalchemy import inspect, select
 from sqlalchemy.orm import Session
@@ -101,6 +103,45 @@ def assign_labs_to_paths(db: Session) -> None:
 
         lab.path_id = path_id
         has_changes = True
+
+    if has_changes:
+        db.commit()
+
+    assign_lab_prerequisites_by_path(db=db)
+
+
+def assign_lab_prerequisites_by_path(db: Session) -> None:
+    bind = db.get_bind()
+    inspector = inspect(bind)
+    if "labs" not in inspector.get_table_names():
+        return
+
+    lab_column_names = {column["name"] for column in inspector.get_columns("labs")}
+    if "path_id" not in lab_column_names or "prerequisite_lab_id" not in lab_column_names:
+        return
+
+    labs = list(
+        db.scalars(
+            select(Lab)
+            .where(Lab.path_id.is_not(None))
+            .order_by(Lab.path_id.asc(), Lab.order_index.asc(), Lab.title.asc()),
+        ),
+    )
+
+    labs_by_path_id: dict[str, list[Lab]] = defaultdict(list)
+    for lab in labs:
+        if lab.path_id is None:
+            continue
+        labs_by_path_id[lab.path_id].append(lab)
+
+    has_changes = False
+    for path_labs in labs_by_path_id.values():
+        previous_lab_id: str | None = None
+        for lab in path_labs:
+            if lab.prerequisite_lab_id != previous_lab_id:
+                lab.prerequisite_lab_id = previous_lab_id
+                has_changes = True
+            previous_lab_id = lab.id
 
     if has_changes:
         db.commit()

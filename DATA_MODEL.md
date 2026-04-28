@@ -194,6 +194,7 @@ Purpose:
 Main fields:
 - `id` (stable string slug)
 - `path_id` (nullable reference to `Path`)
+- `prerequisite_lab_id` (nullable self-reference to `Lab`; used for guided progression inside a path)
 - `title`
 - `description`
 - `difficulty` (`beginner`, `intermediate`, `advanced`)
@@ -205,6 +206,7 @@ Main fields:
 
 Relationships:
 - Many-to-one with `Path`
+- Optional many-to-one self-reference with `Lab` through `prerequisite_lab_id`
 - One `Lab` has many `LabProgress` records
 
 ---

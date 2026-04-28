@@ -7,6 +7,7 @@ from sqlalchemy.orm import sessionmaker
 
 from app.main import app
 from app.modules.labs.services.lab_service import INITIAL_LABS, seed_initial_labs
+from app.modules.paths.services.path_service import assign_labs_to_paths, seed_initial_paths
 from app.shared.db.base import Base
 from app.shared.db.dependencies import get_db
 
@@ -29,7 +30,9 @@ def client(tmp_path) -> TestClient:
 
     seed_db = testing_session_local()
     try:
+        seed_initial_paths(db=seed_db)
         seed_initial_labs(db=seed_db)
+        assign_labs_to_paths(db=seed_db)
     finally:
         seed_db.close()
 
@@ -72,7 +75,7 @@ def test_my_lab_progress_returns_empty_list_for_new_user(client: TestClient):
     assert response.json() == []
 
 
-def test_start_lab_is_idempotent(client: TestClient):
+def test_start_unlocked_lab_is_idempotent(client: TestClient):
     headers = _auth_headers(client)
     lab_id = str(INITIAL_LABS[0]["id"])
 
@@ -84,6 +87,31 @@ def test_start_lab_is_idempotent(client: TestClient):
     assert first_response.json()["id"] == second_response.json()["id"]
     assert second_response.json()["status"] == "in_progress"
     assert second_response.json()["completed_at"] is None
+
+
+def test_start_locked_lab_returns_403(client: TestClient):
+    headers = _auth_headers(client)
+    locked_lab_id = str(INITIAL_LABS[2]["id"])
+
+    response = client.post(f"/api/v1/labs/{locked_lab_id}/start", headers=headers)
+
+    assert response.status_code == 403
+    assert "Lab is locked" in response.json()["detail"]
+
+
+def test_complete_prerequisite_unlocks_next_lab(client: TestClient):
+    headers = _auth_headers(client)
+    prerequisite_lab_id = str(INITIAL_LABS[1]["id"])
+    next_lab_id = str(INITIAL_LABS[2]["id"])
+
+    locked_response = client.post(f"/api/v1/labs/{next_lab_id}/start", headers=headers)
+    complete_prerequisite_response = client.post(f"/api/v1/labs/{prerequisite_lab_id}/complete", headers=headers)
+    unlocked_response = client.post(f"/api/v1/labs/{next_lab_id}/start", headers=headers)
+
+    assert locked_response.status_code == 403
+    assert complete_prerequisite_response.status_code == 200
+    assert unlocked_response.status_code == 200
+    assert unlocked_response.json()["status"] == "in_progress"
 
 
 def test_complete_lab_creates_progress_if_missing(client: TestClient):

@@ -2,12 +2,12 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { ApiClientError } from "@/lib/apiClient";
-import { completeLab, fetchMyLabProgress, startLab } from "@/features/labs/labsService";
+import { completeLab, fetchMyLabProgress, reopenLab, startLab } from "@/features/labs/labsService";
 
 import type { LabProgress, LabProgressStatus } from "@/features/labs/types";
 
 type LabProgressMap = Record<string, LabProgress>;
-type LabProgressAction = "start" | "complete";
+type LabProgressAction = "start" | "complete" | "reopen";
 
 interface UseLabProgressResult {
   progressByLabId: LabProgressMap;
@@ -19,6 +19,7 @@ interface UseLabProgressResult {
   reload: () => Promise<void>;
   startLabProgress: (labId: string) => Promise<void>;
   completeLabProgress: (labId: string) => Promise<void>;
+  reopenLabProgress: (labId: string) => Promise<void>;
 }
 
 function toProgressMap(progressItems: LabProgress[]): LabProgressMap {
@@ -95,7 +96,8 @@ export function useLabProgress(enabled: boolean): UseLabProgressResult {
       }));
 
       try {
-        const updatedProgress = action === "start" ? await startLab(labId) : await completeLab(labId);
+        const updatedProgress =
+          action === "start" ? await startLab(labId) : action === "complete" ? await completeLab(labId) : await reopenLab(labId);
 
         setProgressByLabId((previous) => ({
           ...previous,
@@ -138,6 +140,13 @@ export function useLabProgress(enabled: boolean): UseLabProgressResult {
     [executeAction]
   );
 
+  const reopenLabProgress = useCallback(
+    async (labId: string) => {
+      await executeAction(labId, "reopen");
+    },
+    [executeAction]
+  );
+
   return {
     progressByLabId,
     isLoading,
@@ -147,6 +156,7 @@ export function useLabProgress(enabled: boolean): UseLabProgressResult {
     getLabStatus,
     reload: loadProgress,
     startLabProgress,
-    completeLabProgress
+    completeLabProgress,
+    reopenLabProgress
   };
 }
