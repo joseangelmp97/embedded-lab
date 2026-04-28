@@ -47,14 +47,12 @@ export default function HomePage() {
   const {
     progressByLabId,
     isLoading: isProgressLoading,
-    loadingError: progressError,
-    reload: reloadLabProgress
+    loadingError: progressError
   } = useLabProgress(Boolean(user));
   const {
     pathProgress,
     isLoading: isPathProgressLoading,
-    error: pathProgressError,
-    reload: reloadPathProgress
+    error: pathProgressError
   } = usePathProgress(Boolean(user));
 
   const totalLabs = labs.length;
@@ -126,9 +124,6 @@ export default function HomePage() {
                 </div>
               ) : null}
 
-              <button type="button" className="button secondary feature-card-action labs-inline-button" onClick={() => void reloadLabProgress()}>
-                Refresh progress
-              </button>
             </article>
             <article className="feature-card progress-summary-card">
               <h3>Path Progress</h3>
@@ -149,9 +144,6 @@ export default function HomePage() {
                 </div>
               ) : null}
 
-              <button type="button" className="button secondary feature-card-action labs-inline-button" onClick={() => void reloadPathProgress()}>
-                Refresh path progress
-              </button>
             </article>
             <article className="feature-card">
               <h3>Labs</h3>

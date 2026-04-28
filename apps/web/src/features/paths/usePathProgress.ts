@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { ApiClientError } from "@/lib/apiClient";
 import { fetchMyPathProgress } from "@/features/paths/pathsService";
+import { subscribeToLabProgressUpdates } from "@/features/labs/progressEvents";
 
 import type { PathProgressSummary } from "@/features/paths/types";
 
@@ -54,6 +55,16 @@ export function usePathProgress(enabled: boolean): UsePathProgressResult {
   useEffect(() => {
     void loadPathProgress();
   }, [loadPathProgress]);
+
+  useEffect(() => {
+    if (!enabled) {
+      return;
+    }
+
+    return subscribeToLabProgressUpdates(() => {
+      void loadPathProgress();
+    });
+  }, [enabled, loadPathProgress]);
 
   return {
     pathProgress,

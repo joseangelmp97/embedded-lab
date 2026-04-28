@@ -11,12 +11,11 @@ import { usePathProgress } from "@/features/paths/usePathProgress";
 
 export default function LabsPage() {
   const { user, isInitializing, handleLogout } = useAuth();
-  const { pathLabs, isLoading, error, reload } = usePathLabs(Boolean(user));
+  const { pathLabs, isLoading, error } = usePathLabs(Boolean(user));
   const {
     pathProgress,
     isLoading: isPathProgressLoading,
-    error: pathProgressError,
-    reload: reloadPathProgress
+    error: pathProgressError
   } = usePathProgress(Boolean(user));
   const {
     isLoading: isProgressLoading,
@@ -24,7 +23,6 @@ export default function LabsPage() {
     actionError: progressActionError,
     pendingActions,
     getLabStatus,
-    reload: reloadProgress,
     startLabProgress,
     completeLabProgress,
     reopenLabProgress
@@ -95,15 +93,6 @@ export default function LabsPage() {
             <Link href="/" className="button secondary labs-inline-button">
               Back to dashboard
             </Link>
-            <button type="button" className="button secondary labs-inline-button" onClick={() => void reload()}>
-              Refresh paths
-            </button>
-            <button type="button" className="button secondary labs-inline-button" onClick={() => void reloadProgress()}>
-              Refresh progress
-            </button>
-            <button type="button" className="button secondary labs-inline-button" onClick={() => void reloadPathProgress()}>
-              Refresh path summaries
-            </button>
           </div>
         </section>
 

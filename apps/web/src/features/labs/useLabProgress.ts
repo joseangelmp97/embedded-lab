@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { ApiClientError } from "@/lib/apiClient";
 import { completeLab, fetchMyLabProgress, reopenLab, startLab } from "@/features/labs/labsService";
+import { notifyLabProgressUpdated, subscribeToLabProgressUpdates } from "@/features/labs/progressEvents";
 
 import type { LabProgress, LabProgressStatus } from "@/features/labs/types";
 
@@ -83,6 +84,16 @@ export function useLabProgress(enabled: boolean): UseLabProgressResult {
     void loadProgress();
   }, [loadProgress]);
 
+  useEffect(() => {
+    if (!enabled) {
+      return;
+    }
+
+    return subscribeToLabProgressUpdates(() => {
+      void loadProgress();
+    });
+  }, [enabled, loadProgress]);
+
   const executeAction = useCallback(
     async (labId: string, action: LabProgressAction) => {
       if (!enabled || !labId.trim() || pendingActions[labId]) {
@@ -103,6 +114,7 @@ export function useLabProgress(enabled: boolean): UseLabProgressResult {
           ...previous,
           [labId]: updatedProgress
         }));
+        notifyLabProgressUpdated();
       } catch (caughtError) {
         setActionError(mapProgressActionError(caughtError));
       } finally {

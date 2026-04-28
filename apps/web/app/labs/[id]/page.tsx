@@ -20,7 +20,7 @@ interface LabDetailPageProps {
 
 export default function LabDetailPage({ params }: LabDetailPageProps) {
   const { user, isInitializing, handleLogout } = useAuth();
-  const { lab, isLoading, error, reload } = useLabDetail(params.id, Boolean(user));
+  const { lab, isLoading, error } = useLabDetail(params.id, Boolean(user));
   const {
     isLoading: isProgressLoading,
     loadingError: progressLoadingError,
@@ -29,8 +29,7 @@ export default function LabDetailPage({ params }: LabDetailPageProps) {
     getLabStatus,
     startLabProgress,
     completeLabProgress,
-    reopenLabProgress,
-    reload: reloadProgress
+    reopenLabProgress
   } = useLabProgress(Boolean(user));
 
   const displayName = user?.display_name?.trim() || "Learner";
@@ -86,12 +85,6 @@ export default function LabDetailPage({ params }: LabDetailPageProps) {
             <Link href="/labs" className="button secondary labs-inline-button">
               Back to labs
             </Link>
-            <button type="button" className="button secondary labs-inline-button" onClick={() => void reload()}>
-              Refresh details
-            </button>
-            <button type="button" className="button secondary labs-inline-button" onClick={() => void reloadProgress()}>
-              Refresh progress
-            </button>
           </div>
         </section>
 
