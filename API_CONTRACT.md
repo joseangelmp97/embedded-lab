@@ -983,10 +983,37 @@ Returns ordered published exercises for the lab.
 - Ordered by `order_index ASC`
 
 #### `POST /api/v1/labs/{lab_id}/attempts`
-Creates a new `LabAttemptSession` for the authenticated user.
+Creates or resumes a `LabAttemptSession` for the authenticated user.
+
+- Auth required (`401` if missing/invalid token)
+- Calls existing lab start-progress behavior first (`POST /labs/{lab_id}/start` logic) to enforce locking and progress bootstrap
+- If an active session exists (`lab_attempt_status=started`) for the same `user_id + lab_id`, returns that existing session
+- If only closed sessions exist (`completed`, `failed`, `abandoned`, or any non-active status), creates a new session with `attempt_number = previous_max + 1`
+- Returns `404` when lab does not exist
+- Returns `403` when lab is locked by prerequisite rules
+
+Response fields:
+- `id`
+- `lab_id`
+- `attempt_number`
+- `lab_attempt_status`
+- `total_score_awarded`
+- `max_score`
+- `required_exercises_correct`
+- `required_exercises_total`
+- `hints_used_count`
+- `content_version`
+- `started_at`
+- `completed_at`
+- `updated_at`
 
 #### `GET /api/v1/labs/{lab_id}/attempts/{attempt_id}`
-Returns current attempt session state and evaluated results when available.
+Returns one attempt session for the authenticated user.
+
+- Auth required (`401` if missing/invalid token)
+- Returns `404` when lab does not exist
+- Returns `404` when attempt does not exist
+- Returns `404` when attempt belongs to another user (no existence leak)
 
 #### `POST /api/v1/labs/{lab_id}/attempts/{attempt_id}/submit`
 Submits responses and triggers deterministic server-side evaluation.

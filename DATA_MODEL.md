@@ -570,6 +570,8 @@ Use these values consistently across data model, architecture, and API contract.
 - `submitted`
 - `evaluated`
 - `failed`
+- `completed`
+- `abandoned`
 
 ### progress_status
 
