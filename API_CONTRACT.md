@@ -926,10 +926,7 @@ Reopens lab progress.
 
 ---
 
-## 11) Lab Exercise & Attempt Endpoints (Phase 1, Contract Only)
-
-This section is contract-only for Phase 1 documentation.
-No backend/frontend runtime implementation is included in this phase.
+## 11) Lab Exercise & Attempt Endpoints
 
 ### Phase 1 Constraints
 
@@ -945,7 +942,9 @@ Each lab exercise includes:
 - `prompt`
 - `order_index`
 - `max_score`
-- `metadata` (type-specific)
+- `metadata_json` (type-specific, sanitized)
+- `hint_policy_json` (sanitized)
+- `explanation`
 
 Security rule:
 - answer keys must never be exposed by exercise read endpoints.
@@ -977,6 +976,11 @@ Field naming rule:
 
 #### `GET /api/v1/labs/{lab_id}/exercises`
 Returns ordered published exercises for the lab.
+
+- Auth required (`401` if missing/invalid token)
+- Returns `404` when lab does not exist
+- Returns `[]` when lab exists but has no published exercises
+- Ordered by `order_index ASC`
 
 #### `POST /api/v1/labs/{lab_id}/attempts`
 Creates a new `LabAttemptSession` for the authenticated user.

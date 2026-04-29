@@ -1,10 +1,12 @@
 import json
+from typing import Any
 
 from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.modules.labs.models.lab import Lab
+from app.modules.labs.models.exercise import Exercise
 
 
 INITIAL_LABS: tuple[dict[str, object], ...] = (
@@ -54,6 +56,68 @@ def get_lab_by_id(db: Session, lab_id: str) -> Lab:
         )
 
     return lab
+
+
+SENSITIVE_METADATA_KEYS = {
+    "answer",
+    "answers",
+    "answer_key",
+    "accepted_answer",
+    "accepted_answers",
+    "correct_answer",
+    "correct_answers",
+    "expected_answer",
+    "expected_answers",
+    "evaluation_rule",
+    "evaluation_rules",
+    "rubric",
+    "solution",
+    "solutions",
+}
+
+
+def _sanitize_json_payload(value: Any) -> Any:
+    if isinstance(value, dict):
+        sanitized: dict[str, Any] = {}
+        for key, item in value.items():
+            if key.lower() in SENSITIVE_METADATA_KEYS:
+                continue
+            sanitized[key] = _sanitize_json_payload(item)
+        return sanitized
+
+    if isinstance(value, list):
+        return [_sanitize_json_payload(item) for item in value]
+
+    return value
+
+
+def parse_and_sanitize_json(raw_json: str | None) -> dict[str, Any] | list[Any] | None:
+    if raw_json is None:
+        return None
+
+    try:
+        parsed = json.loads(raw_json)
+    except json.JSONDecodeError:
+        return None
+
+    if isinstance(parsed, (dict, list)):
+        return _sanitize_json_payload(parsed)
+
+    return None
+
+
+def list_published_lab_exercises(db: Session, lab_id: str) -> list[Exercise]:
+    get_lab_by_id(db=db, lab_id=lab_id)
+    return list(
+        db.scalars(
+            select(Exercise)
+            .where(
+                Exercise.lab_id == lab_id,
+                Exercise.status == "published",
+            )
+            .order_by(Exercise.order_index.asc(), Exercise.id.asc())
+        )
+    )
 
 
 def seed_initial_labs(db: Session) -> None:
