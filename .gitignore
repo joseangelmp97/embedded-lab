@@ -1,1 +1,40 @@
+# Python
 venv/
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Python packaging
+*.egg-info/
+dist/
+build/
+
+# Database
+*.db
+*.sqlite3
+
+# Logs
+*.log
+
+# VSCode / IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Node / Next.js
+node_modules/
+.next/
+out/
+
+# Env files
+.env
+.env.*
+
+# Misc
+coverage/
+.pytest_cache/
