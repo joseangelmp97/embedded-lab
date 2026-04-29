@@ -87,59 +87,52 @@ def test_me_path_progress_no_progress_yet(client: TestClient):
     assert len(body) == 4
 
     fundamentals = _summary_by_path_name(body, "Embedded Fundamentals")
-    sensors_io = _summary_by_path_name(body, "Sensors & IO")
 
-    assert fundamentals["total_labs"] == 1
+    assert fundamentals["total_labs"] == 30
     assert fundamentals["completed_labs"] == 0
     assert fundamentals["in_progress_labs"] == 0
-    assert fundamentals["locked_labs"] == 0
+    assert fundamentals["locked_labs"] == 29
     assert fundamentals["completion_percentage"] == 0
-
-    assert sensors_io["total_labs"] == 2
-    assert sensors_io["completed_labs"] == 0
-    assert sensors_io["in_progress_labs"] == 0
-    assert sensors_io["locked_labs"] == 1
-    assert sensors_io["completion_percentage"] == 0
 
 
 def test_me_path_progress_one_in_progress(client: TestClient):
     headers = _auth_headers(client)
 
-    start_response = client.post("/api/v1/labs/button-debounce-fundamentals/start", headers=headers)
+    start_response = client.post("/api/v1/labs/digital-logic-voltage-levels/start", headers=headers)
     response = client.get("/api/v1/me/path-progress", headers=headers)
 
     assert start_response.status_code == 200
     assert response.status_code == 200
 
-    sensors_io = _summary_by_path_name(response.json(), "Sensors & IO")
-    assert sensors_io["completed_labs"] == 0
-    assert sensors_io["in_progress_labs"] == 1
-    assert sensors_io["locked_labs"] == 1
-    assert sensors_io["completion_percentage"] == 0
+    fundamentals = _summary_by_path_name(response.json(), "Embedded Fundamentals")
+    assert fundamentals["completed_labs"] == 0
+    assert fundamentals["in_progress_labs"] == 1
+    assert fundamentals["locked_labs"] == 29
+    assert fundamentals["completion_percentage"] == 0
 
 
 def test_me_path_progress_completed_prerequisite_unlocks_next(client: TestClient):
     headers = _auth_headers(client)
 
-    complete_response = client.post("/api/v1/labs/button-debounce-fundamentals/complete", headers=headers)
+    complete_response = client.post("/api/v1/labs/digital-logic-voltage-levels/complete", headers=headers)
     response = client.get("/api/v1/me/path-progress", headers=headers)
 
     assert complete_response.status_code == 200
     assert response.status_code == 200
 
-    sensors_io = _summary_by_path_name(response.json(), "Sensors & IO")
-    assert sensors_io["completed_labs"] == 1
-    assert sensors_io["in_progress_labs"] == 0
-    assert sensors_io["locked_labs"] == 0
-    assert sensors_io["completion_percentage"] == 50
+    fundamentals = _summary_by_path_name(response.json(), "Embedded Fundamentals")
+    assert fundamentals["completed_labs"] == 1
+    assert fundamentals["in_progress_labs"] == 0
+    assert fundamentals["locked_labs"] == 28
+    assert fundamentals["completion_percentage"] == 3
 
 
 def test_me_path_progress_reopen_prerequisite_updates_percentage_and_locks(client: TestClient):
     headers = _auth_headers(client)
 
-    complete_prereq_response = client.post("/api/v1/labs/button-debounce-fundamentals/complete", headers=headers)
-    complete_next_response = client.post("/api/v1/labs/pwm-motor-speed-control/complete", headers=headers)
-    reopen_prereq_response = client.post("/api/v1/labs/button-debounce-fundamentals/reopen", headers=headers)
+    complete_prereq_response = client.post("/api/v1/labs/digital-logic-voltage-levels/complete", headers=headers)
+    complete_next_response = client.post("/api/v1/labs/gpio-led-basics/complete", headers=headers)
+    reopen_prereq_response = client.post("/api/v1/labs/digital-logic-voltage-levels/reopen", headers=headers)
     response = client.get("/api/v1/me/path-progress", headers=headers)
 
     assert complete_prereq_response.status_code == 200
@@ -147,8 +140,28 @@ def test_me_path_progress_reopen_prerequisite_updates_percentage_and_locks(clien
     assert reopen_prereq_response.status_code == 200
     assert response.status_code == 200
 
-    sensors_io = _summary_by_path_name(response.json(), "Sensors & IO")
-    assert sensors_io["completed_labs"] == 1
-    assert sensors_io["in_progress_labs"] == 1
-    assert sensors_io["locked_labs"] == 1
-    assert sensors_io["completion_percentage"] == 50
+    fundamentals = _summary_by_path_name(response.json(), "Embedded Fundamentals")
+    assert fundamentals["completed_labs"] == 1
+    assert fundamentals["in_progress_labs"] == 1
+    assert fundamentals["locked_labs"] == 29
+    assert fundamentals["completion_percentage"] == 3
+
+
+def test_me_path_progress_ignores_stale_in_progress_for_locked_lab(client: TestClient):
+    headers = _auth_headers(client)
+
+    complete_prereq_response = client.post("/api/v1/labs/digital-logic-voltage-levels/complete", headers=headers)
+    start_downstream_response = client.post("/api/v1/labs/gpio-led-basics/start", headers=headers)
+    reopen_prereq_response = client.post("/api/v1/labs/digital-logic-voltage-levels/reopen", headers=headers)
+    response = client.get("/api/v1/me/path-progress", headers=headers)
+
+    assert complete_prereq_response.status_code == 200
+    assert start_downstream_response.status_code == 200
+    assert reopen_prereq_response.status_code == 200
+    assert response.status_code == 200
+
+    fundamentals = _summary_by_path_name(response.json(), "Embedded Fundamentals")
+    assert fundamentals["completed_labs"] == 0
+    assert fundamentals["in_progress_labs"] == 1
+    assert fundamentals["locked_labs"] == 29
+    assert fundamentals["completion_percentage"] == 0

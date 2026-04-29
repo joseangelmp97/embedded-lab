@@ -99,6 +99,23 @@ def test_start_locked_lab_returns_403(client: TestClient):
     assert "Lab is locked" in response.json()["detail"]
 
 
+def test_start_relocked_lab_returns_403_even_with_existing_progress_record(client: TestClient):
+    headers = _auth_headers(client)
+    prerequisite_lab_id = str(INITIAL_LABS[0]["id"])
+    downstream_lab_id = str(INITIAL_LABS[1]["id"])
+
+    complete_prereq_response = client.post(f"/api/v1/labs/{prerequisite_lab_id}/complete", headers=headers)
+    start_downstream_response = client.post(f"/api/v1/labs/{downstream_lab_id}/start", headers=headers)
+    reopen_prereq_response = client.post(f"/api/v1/labs/{prerequisite_lab_id}/reopen", headers=headers)
+    relocked_start_response = client.post(f"/api/v1/labs/{downstream_lab_id}/start", headers=headers)
+
+    assert complete_prereq_response.status_code == 200
+    assert start_downstream_response.status_code == 200
+    assert reopen_prereq_response.status_code == 200
+    assert relocked_start_response.status_code == 403
+    assert "Lab is locked" in relocked_start_response.json()["detail"]
+
+
 def test_complete_prerequisite_unlocks_next_lab(client: TestClient):
     headers = _auth_headers(client)
     prerequisite_lab_id = str(INITIAL_LABS[1]["id"])

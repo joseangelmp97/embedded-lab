@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { formatDifficultyLabel, formatLabProgressStatusLabel, formatStatusLabel } from "@/features/labs/labFormatters";
-import { LOCKED_LAB_MESSAGE } from "@/features/labs/labProgressRules";
+import { getEffectiveLabProgressStatus, LOCKED_LAB_MESSAGE } from "@/features/labs/labProgressRules";
 import type { Lab, LabProgressStatus } from "@/features/labs/types";
 
 interface LabCardProps {
@@ -14,8 +14,9 @@ interface LabCardProps {
 }
 
 export function LabCard({ lab, progressStatus, isLocked, isSubmitting, onStart, onComplete, onReopen }: LabCardProps) {
-  const canStart = !isLocked && progressStatus === "not_started";
-  const isCompleted = progressStatus === "completed";
+  const effectiveStatus = getEffectiveLabProgressStatus(progressStatus, isLocked);
+  const canStart = !isLocked && effectiveStatus === "not_started";
+  const isCompleted = effectiveStatus === "completed";
 
   return (
     <article className={`lab-card ${isLocked ? "is-locked" : ""}`} aria-label={`Lab ${lab.title}`}>
@@ -41,8 +42,8 @@ export function LabCard({ lab, progressStatus, isLocked, isSubmitting, onStart, 
         <div>
           <dt>Your progress</dt>
           <dd>
-            <span className={`progress-badge progress-${progressStatus}`}>
-              {formatLabProgressStatusLabel(progressStatus)}
+            <span className={`progress-badge progress-${effectiveStatus}`}>
+              {formatLabProgressStatusLabel(effectiveStatus)}
             </span>
           </dd>
         </div>
@@ -52,12 +53,12 @@ export function LabCard({ lab, progressStatus, isLocked, isSubmitting, onStart, 
         <button type="button" className="button secondary labs-inline-button" onClick={onStart} disabled={!canStart || isSubmitting}>
           {isSubmitting ? "Saving..." : isLocked ? "Locked" : canStart ? "Start lab" : isCompleted ? "Completed" : "Started"}
         </button>
-        {isCompleted ? (
+        {isLocked ? null : isCompleted ? (
           <button type="button" className="button secondary labs-inline-button" onClick={onReopen} disabled={isSubmitting}>
             {isSubmitting ? "Saving..." : "Reopen lab"}
           </button>
         ) : (
-          <button type="button" className="button secondary labs-inline-button" onClick={onComplete} disabled={isLocked || isSubmitting}>
+          <button type="button" className="button secondary labs-inline-button" onClick={onComplete} disabled={isSubmitting}>
             {isSubmitting ? "Saving..." : "Mark as completed"}
           </button>
         )}

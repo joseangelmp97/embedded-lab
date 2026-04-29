@@ -36,9 +36,36 @@ INITIAL_PATHS: tuple[dict[str, object], ...] = (
 )
 
 LAB_PATH_ASSIGNMENTS: dict[str, str] = {
+    "digital-logic-voltage-levels": "Embedded Fundamentals",
     "gpio-led-basics": "Embedded Fundamentals",
-    "button-debounce-fundamentals": "Sensors & IO",
-    "pwm-motor-speed-control": "Sensors & IO",
+    "button-debounce-fundamentals": "Embedded Fundamentals",
+    "resistor-led-current-limiting": "Embedded Fundamentals",
+    "timing-with-blocking-delays": "Embedded Fundamentals",
+    "finite-state-machine-basics": "Embedded Fundamentals",
+    "mcu-memory-map-intro": "Embedded Fundamentals",
+    "stack-and-heap-observability": "Embedded Fundamentals",
+    "interrupt-latency-basics": "Embedded Fundamentals",
+    "timer-periodic-tasks": "Embedded Fundamentals",
+    "watchdog-configuration-basics": "Embedded Fundamentals",
+    "low-power-sleep-wakeup": "Embedded Fundamentals",
+    "uart-serial-console-setup": "Embedded Fundamentals",
+    "uart-command-parser": "Embedded Fundamentals",
+    "i2c-device-scan": "Embedded Fundamentals",
+    "i2c-register-read-write": "Embedded Fundamentals",
+    "spi-loopback-validation": "Embedded Fundamentals",
+    "framing-and-checksum-basics": "Embedded Fundamentals",
+    "adc-temperature-sensor-read": "Embedded Fundamentals",
+    "sensor-sampling-and-averaging": "Embedded Fundamentals",
+    "threshold-alarm-logic": "Embedded Fundamentals",
+    "pwm-motor-speed-control": "Embedded Fundamentals",
+    "servo-position-control": "Embedded Fundamentals",
+    "h-bridge-direction-control": "Embedded Fundamentals",
+    "structured-logging-basics": "Embedded Fundamentals",
+    "assertions-and-fail-fast": "Embedded Fundamentals",
+    "fault-injection-reset-recovery": "Embedded Fundamentals",
+    "boundary-value-test-design": "Embedded Fundamentals",
+    "on-target-debugger-breakpoints": "Embedded Fundamentals",
+    "postmortem-event-timeline": "Embedded Fundamentals",
 }
 
 
@@ -69,14 +96,24 @@ def list_labs_by_path_id(db: Session, path_id: str) -> list[Lab]:
 
 
 def seed_initial_paths(db: Session) -> None:
-    existing_ids = set(db.scalars(select(Path.id)))
-    paths_to_create = [Path(**path_payload) for path_payload in INITIAL_PATHS if path_payload["id"] not in existing_ids]
+    existing_paths = {path.id: path for path in db.scalars(select(Path)).all()}
+    has_changes = False
 
-    if not paths_to_create:
-        return
+    for path_payload in INITIAL_PATHS:
+        path_id = str(path_payload["id"])
+        path = existing_paths.get(path_id)
+        if path is None:
+            db.add(Path(**path_payload))
+            has_changes = True
+            continue
 
-    db.add_all(paths_to_create)
-    db.commit()
+        for field_name, field_value in path_payload.items():
+            if getattr(path, field_name) != field_value:
+                setattr(path, field_name, field_value)
+                has_changes = True
+
+    if has_changes:
+        db.commit()
 
 
 def assign_labs_to_paths(db: Session) -> None:

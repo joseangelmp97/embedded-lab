@@ -137,31 +137,35 @@ def test_paths_endpoints_require_authentication(client: TestClient):
 
 def test_path_modules_returns_modules_for_requested_path(client: TestClient):
     token = _authenticate(client)
-    sensors_path_id = str(INITIAL_PATHS[1]["id"])
+    embedded_fundamentals_path_id = str(INITIAL_PATHS[0]["id"])
 
     response = client.get(
-        f"/api/v1/paths/{sensors_path_id}/modules",
+        f"/api/v1/paths/{embedded_fundamentals_path_id}/modules",
         headers={"Authorization": f"Bearer {token}"},
     )
 
     assert response.status_code == 200
     body = response.json()
-    expected_modules = [module for module in INITIAL_PATH_MODULES if module["path_id"] == sensors_path_id]
+    expected_modules = [module for module in INITIAL_PATH_MODULES if module["path_id"] == embedded_fundamentals_path_id]
     assert [module["id"] for module in body] == [module["id"] for module in expected_modules]
 
 
 def test_module_labs_returns_labs_for_requested_module(client: TestClient):
     token = _authenticate(client)
-    input_reliability_module_id = INITIAL_PATH_MODULES[1]["id"]
+    embedded_foundations_module_id = INITIAL_PATH_MODULES[0]["id"]
 
     response = client.get(
-        f"/api/v1/modules/{input_reliability_module_id}/labs",
+        f"/api/v1/modules/{embedded_foundations_module_id}/labs",
         headers={"Authorization": f"Bearer {token}"},
     )
 
     assert response.status_code == 200
     body = response.json()
-    assert [lab["id"] for lab in body] == ["button-debounce-fundamentals"]
+    assert [lab["id"] for lab in body][:3] == [
+        "digital-logic-voltage-levels",
+        "gpio-led-basics",
+        "button-debounce-fundamentals",
+    ]
 
 
 def test_module_labs_returns_404_for_missing_module(client: TestClient):

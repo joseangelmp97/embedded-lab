@@ -8,7 +8,7 @@ import {
   formatStatusLabel,
   formatTimestamp
 } from "@/features/labs/labFormatters";
-import { isLabLocked, LOCKED_LAB_MESSAGE } from "@/features/labs/labProgressRules";
+import { getEffectiveLabProgressStatus, isLabLocked, LOCKED_LAB_MESSAGE } from "@/features/labs/labProgressRules";
 import { useLabDetail } from "@/features/labs/useLabDetail";
 import { useLabProgress } from "@/features/labs/useLabProgress";
 
@@ -35,6 +35,7 @@ export default function LabDetailPage({ params }: LabDetailPageProps) {
   const displayName = user?.display_name?.trim() || "Learner";
   const labProgressStatus = lab ? getLabStatus(lab.id) : "not_started";
   const locked = lab ? isLabLocked(lab, getLabStatus) : false;
+  const effectiveLabProgressStatus = getEffectiveLabProgressStatus(labProgressStatus, locked);
 
   if (isInitializing) {
     return (
@@ -134,8 +135,8 @@ export default function LabDetailPage({ params }: LabDetailPageProps) {
               <div>
                 <dt>Your progress</dt>
                 <dd>
-                  <span className={`progress-badge progress-${labProgressStatus}`}>
-                    {formatLabProgressStatusLabel(labProgressStatus)}
+                  <span className={`progress-badge progress-${effectiveLabProgressStatus}`}>
+                    {formatLabProgressStatusLabel(effectiveLabProgressStatus)}
                   </span>
                 </dd>
               </div>
@@ -146,19 +147,19 @@ export default function LabDetailPage({ params }: LabDetailPageProps) {
                 type="button"
                 className="button secondary labs-inline-button"
                 onClick={() => void startLabProgress(lab.id)}
-                disabled={locked || labProgressStatus !== "not_started" || Boolean(pendingActions[lab.id])}
+                disabled={locked || effectiveLabProgressStatus !== "not_started" || Boolean(pendingActions[lab.id])}
               >
                 {pendingActions[lab.id]
                   ? "Saving..."
                   : locked
                     ? "Locked"
-                    : labProgressStatus === "not_started"
+                    : effectiveLabProgressStatus === "not_started"
                       ? "Start lab"
-                      : labProgressStatus === "completed"
+                      : effectiveLabProgressStatus === "completed"
                         ? "Completed"
                       : "Started"}
               </button>
-              {labProgressStatus === "completed" ? (
+              {locked ? null : effectiveLabProgressStatus === "completed" ? (
                 <button
                   type="button"
                   className="button secondary labs-inline-button"
@@ -176,7 +177,7 @@ export default function LabDetailPage({ params }: LabDetailPageProps) {
                       void completeLabProgress(lab.id);
                     }
                   }}
-                  disabled={locked || Boolean(pendingActions[lab.id])}
+                  disabled={Boolean(pendingActions[lab.id])}
                 >
                   {pendingActions[lab.id] ? "Saving..." : "Mark as completed"}
                 </button>

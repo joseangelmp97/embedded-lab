@@ -11,6 +11,40 @@ from app.modules.paths.models.path import Path
 from app.modules.users.models.user import User
 
 
+def _is_effectively_unlocked(
+    *,
+    lab: Lab,
+    labs_by_id: dict[str, Lab],
+    completed_lab_ids: set[str],
+    unlock_cache: dict[str, bool],
+) -> bool:
+    cached = unlock_cache.get(lab.id)
+    if cached is not None:
+        return cached
+
+    prerequisite_lab_id = lab.prerequisite_lab_id
+    if prerequisite_lab_id is None:
+        unlock_cache[lab.id] = True
+        return True
+
+    prerequisite_lab = labs_by_id.get(prerequisite_lab_id)
+    if prerequisite_lab is None:
+        unlock_cache[lab.id] = False
+        return False
+
+    is_unlocked = (
+        prerequisite_lab_id in completed_lab_ids
+        and _is_effectively_unlocked(
+            lab=prerequisite_lab,
+            labs_by_id=labs_by_id,
+            completed_lab_ids=completed_lab_ids,
+            unlock_cache=unlock_cache,
+        )
+    )
+    unlock_cache[lab.id] = is_unlocked
+    return is_unlocked
+
+
 def list_user_lab_progress(db: Session, user_id: str) -> list[LabProgress]:
     return list(
         db.scalars(
@@ -64,13 +98,29 @@ def list_user_path_progress_summaries(db: Session, user_id: str) -> list[dict[st
     summaries: list[dict[str, object]] = []
     for path in paths:
         path_labs = labs_by_path_id.get(path.id, [])
+        labs_by_id = {lab.id: lab for lab in path_labs}
+        unlock_cache: dict[str, bool] = {}
+        unlocked_lab_ids = {
+            lab.id
+            for lab in path_labs
+            if _is_effectively_unlocked(
+                lab=lab,
+                labs_by_id=labs_by_id,
+                completed_lab_ids=completed_lab_ids,
+                unlock_cache=unlock_cache,
+            )
+        }
         total_labs = len(path_labs)
         completed_labs = sum(1 for lab in path_labs if progress_by_lab_id.get(lab.id) == "completed")
-        in_progress_labs = sum(1 for lab in path_labs if progress_by_lab_id.get(lab.id) == "in_progress")
+        in_progress_labs = sum(
+            1
+            for lab in path_labs
+            if lab.id in unlocked_lab_ids and progress_by_lab_id.get(lab.id) == "in_progress"
+        )
         locked_labs = sum(
             1
             for lab in path_labs
-            if lab.prerequisite_lab_id is not None and lab.prerequisite_lab_id not in completed_lab_ids
+            if lab.id not in unlocked_lab_ids
         )
         completion_percentage = int((completed_labs * 100) / total_labs) if total_labs else 0
 
@@ -93,16 +143,6 @@ def list_user_path_progress_summaries(db: Session, user_id: str) -> list[dict[st
 def start_lab_progress(db: Session, user: User, lab_id: str) -> LabProgress:
     lab = get_lab_by_id(db=db, lab_id=lab_id)
 
-    progress = db.scalar(
-        select(LabProgress).where(
-            LabProgress.user_id == user.id,
-            LabProgress.lab_id == lab_id,
-        ),
-    )
-
-    if progress is not None:
-        return progress
-
     if lab.prerequisite_lab_id is not None:
         prerequisite_progress = db.scalar(
             select(LabProgress).where(
@@ -118,6 +158,16 @@ def start_lab_progress(db: Session, user: User, lab_id: str) -> LabProgress:
                     f"Lab is locked. Complete prerequisite lab '{lab.prerequisite_lab_id}' before starting this one."
                 ),
             )
+
+    progress = db.scalar(
+        select(LabProgress).where(
+            LabProgress.user_id == user.id,
+            LabProgress.lab_id == lab_id,
+        ),
+    )
+
+    if progress is not None:
+        return progress
 
     now = datetime.now(tz=timezone.utc)
     progress = LabProgress(
