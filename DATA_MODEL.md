@@ -329,7 +329,7 @@ Main fields:
 - `score_awarded`
 - `max_score`
 - `evaluation_mode_used` (`deterministic`, `ai_assisted`)
-- `feedback_text`
+- `feedback`
 - `evaluation_details_json`
 - `evaluated_at`
 - `created_at`
@@ -564,6 +564,13 @@ Use these values consistently across data model, architecture, and API contract.
 - `evaluated`
 - `failed`
 
+### lab_attempt_status
+
+- `started`
+- `submitted`
+- `evaluated`
+- `failed`
+
 ### progress_status
 
 - `locked`
@@ -586,6 +593,12 @@ Use these values consistently across data model, architecture, and API contract.
 - `component_selection`
 - `connection_graph`
 - `natural_language_ai`
+
+### exercise_type
+
+- `multiple_choice`
+- `fill_blank`
+- `short_text`
 
 ### leaderboard_scope
 
@@ -615,3 +628,88 @@ Use these values consistently across data model, architecture, and API contract.
 - `not_started`
 - `in_progress`
 - `completed`
+
+
+---
+
+## 8) Phase 1 Addendum: Interactive Lab Entities
+
+### LabExercise
+
+Purpose:
+- Represents one evaluable exercise inside a lab.
+
+Main fields:
+- `id`
+- `lab_id`
+- `exercise_type` (`multiple_choice`, `fill_blank`, `short_text`)
+- `prompt`
+- `order_index`
+- `max_score`
+- `evaluation_mode` (`deterministic`)
+- `metadata_json`
+- `is_published`
+- `created_at`
+- `updated_at`
+
+Relationships:
+- Many-to-one with `Lab`
+- One `LabExercise` has many `ExerciseAttempt`
+
+### LabAttemptSession
+
+Purpose:
+- Represents one user session attempting exercises in a single lab.
+
+Main fields:
+- `id`
+- `user_id`
+- `lab_id`
+- `attempt_number`
+- `status` (`started`, `submitted`, `evaluated`, `failed`)
+- `started_at`
+- `submitted_at` (nullable)
+- `evaluated_at` (nullable)
+- `total_score_awarded`
+- `max_score`
+- `evaluation_summary_json`
+- `created_at`
+- `updated_at`
+
+Relationships:
+- Many-to-one with `User`
+- Many-to-one with `Lab`
+- One `LabAttemptSession` has many `ExerciseAttempt`
+
+### ExerciseAttempt
+
+Purpose:
+- Stores per-exercise response payload and deterministic evaluation result.
+
+Main fields:
+- `id`
+- `lab_attempt_session_id`
+- `lab_exercise_id`
+- `response_payload_json`
+- `is_correct`
+- `score_awarded`
+- `max_score`
+- `evaluation_mode_used` (`deterministic`)
+- `feedback`
+- `evaluation_details_json` (optional)
+- `evaluated_at`
+- `created_at`
+- `updated_at`
+
+Constraints:
+- Unique per (`lab_attempt_session_id`, `lab_exercise_id`) in Phase 1.
+
+### Compatibility Constraints
+
+- `LabAttemptSession` and `ExerciseAttempt` are additive and do not replace `LabProgress`.
+- Existing endpoints remain authoritative for lifecycle transitions:
+  - `POST /api/v1/labs/{lab_id}/start`
+  - `POST /api/v1/labs/{lab_id}/complete`
+  - `POST /api/v1/labs/{lab_id}/reopen`
+- Lab exercise evaluation is deterministic-only in Phase 1.
+

@@ -62,9 +62,11 @@ These enums are canonical and must match `DATA_MODEL.md`.
 
 - `difficulty`: `beginner`, `intermediate`, `advanced`
 - `attempt_status`: `started`, `submitted`, `evaluating`, `evaluated`, `failed`
+- `lab_attempt_status`: `started`, `submitted`, `evaluated`, `failed`
 - `progress_status`: `locked`, `unlocked`, `in_progress`, `completed`
 - `evaluation_mode`: `deterministic`, `ai_assisted`, `hybrid`
 - `question_type`: `single_choice`, `multiple_choice`, `fill_blank_code`, `order_steps`, `component_selection`, `connection_graph`, `natural_language_ai`
+- `exercise_type`: `multiple_choice`, `fill_blank`, `short_text`
 - `leaderboard_scope`: `global`, `track`, `level`, `time_window`
 - `user_role`: `learner`, `admin`
 - `user_status`: `active`, `suspended`
@@ -811,18 +813,6 @@ Returns labs associated with a specific module ordered by `order_index`.
 
 - `404` when the module does not exist (`detail: "Module not found"`).
 
-### `GET /api/v1/paths/{path_id}/modules`
-
-Returns modules associated with a specific path ordered by `order_index`.
-
-- `404` when the path does not exist (`detail: "Path not found"`).
-
-### `GET /api/v1/modules/{module_id}/labs`
-
-Returns labs associated with a specific module ordered by `order_index`.
-
-- `404` when the module does not exist (`detail: "Module not found"`).
-
 ### `GET /api/v1/labs`
 
 Returns all available labs ordered by `order_index`.
@@ -932,3 +922,119 @@ Reopens lab progress.
 - If status is `completed`, sets `status=in_progress` and clears `completed_at`.
 - If missing, creates progress in `in_progress` state.
 - `404` when the lab does not exist.
+
+
+---
+
+## 11) Lab Exercise & Attempt Endpoints (Phase 1, Contract Only)
+
+This section is contract-only for Phase 1 documentation.
+No backend/frontend runtime implementation is included in this phase.
+
+### Phase 1 Constraints
+
+- deterministic evaluation only
+- no AI grading
+- no code execution/sandbox
+
+### Exercise Model (Response Shape)
+
+Each lab exercise includes:
+- `id`
+- `exercise_type` (`multiple_choice`, `fill_blank`, `short_text`)
+- `prompt`
+- `order_index`
+- `max_score`
+- `metadata` (type-specific)
+
+Security rule:
+- answer keys must never be exposed by exercise read endpoints.
+
+### Attempt Model (Response Shape)
+
+`LabAttemptSession` includes:
+- `attempt_id`
+- `lab_id`
+- `status` (`started`, `submitted`, `evaluated`, `failed`)
+- `attempt_number`
+- `started_at`, `submitted_at`, `evaluated_at`
+- `total_score_awarded`, `max_score`
+
+`ExerciseAttempt` result includes:
+- `exercise_id`
+- `exercise_type`
+- `is_correct`
+- `score_awarded`
+- `max_score`
+- `feedback`
+- optional `details`
+- `evaluation_mode_used` (`deterministic`)
+
+Field naming rule:
+- `hint` and `explanation` are not response field names in Phase 1 attempt results.
+
+### Planned Endpoints
+
+#### `GET /api/v1/labs/{lab_id}/exercises`
+Returns ordered published exercises for the lab.
+
+#### `POST /api/v1/labs/{lab_id}/attempts`
+Creates a new `LabAttemptSession` for the authenticated user.
+
+#### `GET /api/v1/labs/{lab_id}/attempts/{attempt_id}`
+Returns current attempt session state and evaluated results when available.
+
+#### `POST /api/v1/labs/{lab_id}/attempts/{attempt_id}/submit`
+Submits responses and triggers deterministic server-side evaluation.
+
+Request example:
+```json
+{
+  "responses": [
+    {
+      "exercise_id": "ex_1",
+      "response_payload": {
+        "selected_option_ids": ["a", "b"]
+      }
+    }
+  ]
+}
+```
+
+Response example:
+```json
+{
+  "success": true,
+  "data": {
+    "attempt_id": "labatt_1001",
+    "status": "evaluated",
+    "total_score_awarded": 10,
+    "max_score": 10,
+    "exercise_attempts": [
+      {
+        "exercise_id": "ex_1",
+        "exercise_type": "multiple_choice",
+        "is_correct": true,
+        "score_awarded": 10,
+        "max_score": 10,
+        "feedback": "Correct selection.",
+        "evaluation_mode_used": "deterministic"
+      }
+    ]
+  }
+}
+```
+
+Errors:
+- `422` invalid `response_payload` schema
+- `403` attempt ownership violation
+- `404` lab or attempt not found
+- `409` invalid attempt lifecycle transition
+
+### Compatibility with Existing Lab Progress Endpoints
+
+Phase 1 is additive and keeps existing lifecycle endpoints unchanged:
+- `POST /api/v1/labs/{lab_id}/start`
+- `POST /api/v1/labs/{lab_id}/complete`
+- `POST /api/v1/labs/{lab_id}/reopen`
+

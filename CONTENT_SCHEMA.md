@@ -454,3 +454,108 @@ Example:
   }
 }
 ```
+
+
+---
+
+## 8) Phase 1 Lab Exercise Schemas (`exercise_type`)
+
+Compatibility note:
+- Existing `question_type` schemas remain valid for challenge-based flows.
+- Interactive lab flows in Phase 1 use `exercise_type` schemas below.
+- Both models coexist during incremental delivery.
+
+Phase 1 constraints:
+- supported `exercise_type`: `multiple_choice`, `fill_blank`, `short_text`
+- deterministic evaluation only
+- no AI grading
+- no code execution/sandbox
+
+Evaluation result field naming for Phase 1 lab attempts:
+- canonical response fields are `is_correct`, `score_awarded`, and `feedback`
+- `hint` and `explanation` are not result field names in this phase
+
+### 8.1) `multiple_choice` (exercise_type)
+
+Metadata structure (`metadata_json` / `metadata`):
+```json
+{
+  "options": [
+    { "id": "a", "label": "GPIO" },
+    { "id": "b", "label": "UART" },
+    { "id": "c", "label": "HTTP" }
+  ],
+  "correct_option_ids": ["a", "b"]
+}
+```
+
+Response payload structure:
+```json
+{
+  "selected_option_ids": ["a", "b"]
+}
+```
+
+Validation rules:
+- `options` must contain at least 2 entries.
+- option IDs must be unique.
+- `correct_option_ids` must be non-empty and present in `options`.
+- `selected_option_ids` must be unique and present in `options`.
+
+### 8.2) `fill_blank` (exercise_type)
+
+Metadata structure (`metadata_json` / `metadata`):
+```json
+{
+  "blanks": [
+    { "id": "blank_1", "accepted_answers": ["INPUT_PULLUP", "input_pullup"] },
+    { "id": "blank_2", "accepted_answers": ["HIGH"] }
+  ],
+  "case_sensitive": false,
+  "trim_whitespace": true
+}
+```
+
+Response payload structure:
+```json
+{
+  "answers": {
+    "blank_1": "INPUT_PULLUP",
+    "blank_2": "HIGH"
+  }
+}
+```
+
+Validation rules:
+- blank IDs must be unique.
+- each blank must define at least one accepted answer.
+- `answers` must include all and only declared blank IDs.
+
+### 8.3) `short_text` (exercise_type)
+
+Metadata structure (`metadata_json` / `metadata`):
+```json
+{
+  "match_type": "keyword_set",
+  "required_keywords": ["pull-up", "floating"],
+  "forbidden_keywords": [],
+  "min_chars": 10,
+  "max_chars": 300,
+  "case_sensitive": false,
+  "trim_whitespace": true
+}
+```
+
+Response payload structure:
+```json
+{
+  "answer_text": "A pull-up resistor prevents a floating input."
+}
+```
+
+Validation rules:
+- `answer_text` length must be within configured range.
+- `required_keywords` must be non-empty when `match_type` is `keyword_set`.
+- evaluation is deterministic normalization/keyword matching only.
+- no semantic AI interpretation is allowed in Phase 1.
+

@@ -274,10 +274,10 @@ Each type must have:
 
 All evaluators must return a structured response:
 
-- `is_correct` (boolean or graded)
+- `is_correct` (boolean)
 - `score_awarded` (awarded points)
 - `max_score`
-- `feedback` (user-facing explanation)
+- `feedback` (user-facing feedback message)
 - `details` (optional debug or structured info)
 
 Naming rule for question metadata:
@@ -337,3 +337,45 @@ This contract must remain stable across all evaluators.
 - Performance optimization and scaling improvements
 - More sophisticated leaderboard and progression features
 - Continuous architecture refinement with synchronized documentation updates
+
+
+---
+
+## 8. Phase 1 Addendum: Lab Exercise & Evaluation Contracts
+
+### Exercise Model (Phase 1)
+
+Lab interactive exercises use `exercise_type` (separate from challenge `question_type`) with:
+- `multiple_choice`
+- `fill_blank`
+- `short_text`
+
+### Attempt Model (Phase 1)
+
+- `LabAttemptSession`: session lifecycle for a user+lab attempt.
+- `ExerciseAttempt`: per-exercise response and evaluation result within a lab session.
+
+### Evaluation Contract (Phase 1)
+
+- deterministic evaluation only
+- no AI grading
+- no code execution/sandbox
+- stable output contract per exercise: `is_correct`, `score_awarded`, `max_score`, `feedback`, optional `details`
+- `hint` and `explanation` are not response field names in the Phase 1 lab contract.
+
+### Planned Endpoints (Contract Only)
+
+- `GET /api/v1/labs/{lab_id}/exercises`
+- `POST /api/v1/labs/{lab_id}/attempts`
+- `GET /api/v1/labs/{lab_id}/attempts/{attempt_id}`
+- `POST /api/v1/labs/{lab_id}/attempts/{attempt_id}/submit`
+
+### Compatibility with Existing Lab Lifecycle
+
+Phase 1 is additive and must remain backward compatible with:
+- `POST /api/v1/labs/{lab_id}/start`
+- `POST /api/v1/labs/{lab_id}/complete`
+- `POST /api/v1/labs/{lab_id}/reopen`
+
+No existing lab progress semantics are removed or changed in this phase.
+
