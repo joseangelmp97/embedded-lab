@@ -781,6 +781,48 @@ Returns labs associated with a specific path ordered by `order_index`.
 
 - `404` when the path does not exist (`detail: "Path not found"`).
 
+### `GET /api/v1/paths/{path_id}/modules`
+
+Returns published path modules for a specific path ordered by `order_index`.
+
+- `404` when the path does not exist (`detail: "Path not found"`).
+
+Response `200`:
+
+```json
+[
+  {
+    "id": "b2ad4087-f7e2-42fc-9d4d-306fd83b5ab2",
+    "path_id": "fcb79cb6-18f6-4347-a7cb-f8f57c4d4f17",
+    "slug": "input-reliability",
+    "title": "Reliable Input Handling",
+    "description": "Handle noisy digital input signals and stable embedded interaction patterns.",
+    "order_index": 1,
+    "is_published": true,
+    "created_at": "2026-04-27T10:00:00Z",
+    "updated_at": "2026-04-27T10:00:00Z"
+  }
+]
+```
+
+### `GET /api/v1/modules/{module_id}/labs`
+
+Returns labs associated with a specific module ordered by `order_index`.
+
+- `404` when the module does not exist (`detail: "Module not found"`).
+
+### `GET /api/v1/paths/{path_id}/modules`
+
+Returns modules associated with a specific path ordered by `order_index`.
+
+- `404` when the path does not exist (`detail: "Path not found"`).
+
+### `GET /api/v1/modules/{module_id}/labs`
+
+Returns labs associated with a specific module ordered by `order_index`.
+
+- `404` when the module does not exist (`detail: "Module not found"`).
+
 ### `GET /api/v1/labs`
 
 Returns all available labs ordered by `order_index`.
@@ -797,7 +839,15 @@ Response `200`:
     "estimated_minutes": 25,
     "status": "published",
     "order_index": 1,
+    "path_id": "247f7a42-17d9-4f08-8fc3-7284fdbbe93c",
+    "module_id": "ce4fce5f-b9a4-4e9f-8c4f-07fbe8838399",
     "prerequisite_lab_id": null,
+    "slug": "gpio-led-basics",
+    "learning_objectives_json": null,
+    "tags_json": null,
+    "hardware_requirements_json": null,
+    "content_version": 1,
+    "is_optional": false,
     "created_at": "2026-04-27T10:00:00Z",
     "updated_at": "2026-04-27T10:00:00Z"
   }

@@ -5,6 +5,11 @@ from fastapi import FastAPI
 from app.api.router import api_router
 from app.modules.labs.services.lab_service import seed_initial_labs
 from app.modules.paths.services.path_service import assign_labs_to_paths, seed_initial_paths
+from app.modules.paths.services.path_module_service import (
+    assign_labs_to_modules,
+    seed_initial_path_modules,
+    validate_module_prerequisite_integrity,
+)
 from app.shared.config.settings import get_settings
 from app.shared.db.session import SessionLocal, init_db
 
@@ -18,8 +23,11 @@ async def lifespan(_: FastAPI):
     db = SessionLocal()
     try:
         seed_initial_paths(db=db)
+        seed_initial_path_modules(db=db)
         seed_initial_labs(db=db)
         assign_labs_to_paths(db=db)
+        assign_labs_to_modules(db=db)
+        validate_module_prerequisite_integrity(db=db)
     finally:
         db.close()
     yield

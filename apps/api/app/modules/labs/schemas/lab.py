@@ -16,7 +16,15 @@ class LabResponse(BaseModel):
     estimated_minutes: int
     status: LabStatus
     order_index: int
+    path_id: str | None = None
+    module_id: str | None = None
     prerequisite_lab_id: str | None
+    slug: str | None = None
+    learning_objectives_json: str | None = None
+    tags_json: str | None = None
+    hardware_requirements_json: str | None = None
+    content_version: int
+    is_optional: bool
     created_at: datetime
     updated_at: datetime
 

@@ -194,9 +194,16 @@ Purpose:
 Main fields:
 - `id` (stable string slug)
 - `path_id` (nullable reference to `Path`)
+- `module_id` (nullable reference to `PathModule`; nullable for backward compatibility and incremental rollout)
 - `prerequisite_lab_id` (nullable self-reference to `Lab`; used for guided progression inside a path)
+- `slug` (nullable URL-safe identifier)
 - `title`
 - `description`
+- `learning_objectives_json` (nullable serialized list)
+- `tags_json` (nullable serialized list)
+- `hardware_requirements_json` (nullable serialized list)
+- `content_version` (default `1`)
+- `is_optional` (default `false`)
 - `difficulty` (`beginner`, `intermediate`, `advanced`)
 - `estimated_minutes`
 - `status` (`draft`, `published`, `archived`)
@@ -206,8 +213,31 @@ Main fields:
 
 Relationships:
 - Many-to-one with `Path`
+- Optional many-to-one with `PathModule`
 - Optional many-to-one self-reference with `Lab` through `prerequisite_lab_id`
 - One `Lab` has many `LabProgress` records
+
+---
+
+## PathModule
+
+Purpose:
+- Represents a module inside a learning path used to group labs into smaller ordered units.
+
+Main fields:
+- `id`
+- `path_id` (reference to `Path`)
+- `slug`
+- `title`
+- `description`
+- `order_index`
+- `is_published`
+- `created_at`
+- `updated_at`
+
+Relationships:
+- Many-to-one with `Path`
+- One `PathModule` has many `Lab`
 
 ---
 
@@ -225,6 +255,7 @@ Main fields:
 - `updated_at`
 
 Relationships:
+- One `Path` has many `PathModule`
 - One `Path` has many `Lab`
 
 ---

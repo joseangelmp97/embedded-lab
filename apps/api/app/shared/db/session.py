@@ -31,8 +31,28 @@ def init_db() -> None:
         return
 
     lab_columns = {column["name"] for column in inspector.get_columns("labs")}
-    if "prerequisite_lab_id" in lab_columns:
+
+    missing_column_statements: list[str] = []
+    if "prerequisite_lab_id" not in lab_columns:
+        missing_column_statements.append("ALTER TABLE labs ADD COLUMN prerequisite_lab_id VARCHAR(100)")
+    if "module_id" not in lab_columns:
+        missing_column_statements.append("ALTER TABLE labs ADD COLUMN module_id VARCHAR(36)")
+    if "slug" not in lab_columns:
+        missing_column_statements.append("ALTER TABLE labs ADD COLUMN slug VARCHAR(255)")
+    if "learning_objectives_json" not in lab_columns:
+        missing_column_statements.append("ALTER TABLE labs ADD COLUMN learning_objectives_json VARCHAR")
+    if "tags_json" not in lab_columns:
+        missing_column_statements.append("ALTER TABLE labs ADD COLUMN tags_json VARCHAR")
+    if "hardware_requirements_json" not in lab_columns:
+        missing_column_statements.append("ALTER TABLE labs ADD COLUMN hardware_requirements_json VARCHAR")
+    if "content_version" not in lab_columns:
+        missing_column_statements.append("ALTER TABLE labs ADD COLUMN content_version INTEGER NOT NULL DEFAULT 1")
+    if "is_optional" not in lab_columns:
+        missing_column_statements.append("ALTER TABLE labs ADD COLUMN is_optional BOOLEAN NOT NULL DEFAULT 0")
+
+    if not missing_column_statements:
         return
 
     with engine.begin() as connection:
-        connection.execute(text("ALTER TABLE labs ADD COLUMN prerequisite_lab_id VARCHAR(100)"))
+        for statement in missing_column_statements:
+            connection.execute(text(statement))

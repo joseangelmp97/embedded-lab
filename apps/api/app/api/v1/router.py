@@ -10,6 +10,7 @@ from app.modules.lab_progress.router import router as lab_progress_router
 from app.modules.labs.router import router as labs_router
 from app.modules.leaderboard.router import router as leaderboard_router
 from app.modules.paths.router import router as paths_router
+from app.modules.paths.modules_router import router as modules_router
 from app.modules.progress.router import router as progress_router
 from app.modules.scoring.router import router as scoring_router
 from app.modules.users.router import router as users_router
@@ -19,6 +20,7 @@ v1_router = APIRouter()
 v1_router.include_router(auth_router)
 v1_router.include_router(users_router)
 v1_router.include_router(paths_router)
+v1_router.include_router(modules_router)
 v1_router.include_router(labs_router)
 v1_router.include_router(lab_progress_router)
 v1_router.include_router(content_router)

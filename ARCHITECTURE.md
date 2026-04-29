@@ -207,6 +207,13 @@ Boundaries:
 4. Reopen keeps the same progress row and only changes status timestamps (no cascade cleanup of later labs in this phase).
 5. Path-level progress summaries aggregate per-path lab totals and statuses (`completed`, `in_progress`, `locked`) based on current prerequisite completion state for the same user.
 
+### Path Module Catalog Read Flow
+
+1. Startup seeding creates `PathModule` rows and assigns seeded labs to modules when available.
+2. `GET /api/v1/paths/{path_id}/modules` returns modules belonging to the path, ordered by `order_index`.
+3. `GET /api/v1/modules/{module_id}/labs` returns labs in the module, ordered by `order_index`.
+4. A lightweight integrity check validates module-aware prerequisites: when a lab has `module_id` and `prerequisite_lab_id`, the prerequisite lab must belong to the same path.
+
 ### Challenge Attempt Flow
 
 1. User submits answer for a challenge question.

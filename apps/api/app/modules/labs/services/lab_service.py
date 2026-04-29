@@ -8,6 +8,7 @@ from app.modules.labs.models.lab import Lab
 INITIAL_LABS: tuple[dict[str, object], ...] = (
     {
         "id": "gpio-led-basics",
+        "slug": "gpio-led-basics",
         "title": "GPIO and LED basics",
         "description": "Learn GPIO output fundamentals by controlling an LED with a microcontroller pin.",
         "difficulty": "beginner",
@@ -17,6 +18,7 @@ INITIAL_LABS: tuple[dict[str, object], ...] = (
     },
     {
         "id": "button-debounce-fundamentals",
+        "slug": "button-debounce-fundamentals",
         "title": "Button debounce fundamentals",
         "description": "Understand switch bounce behavior and implement reliable button input handling.",
         "difficulty": "beginner",
@@ -26,6 +28,7 @@ INITIAL_LABS: tuple[dict[str, object], ...] = (
     },
     {
         "id": "pwm-motor-speed-control",
+        "slug": "pwm-motor-speed-control",
         "title": "PWM motor speed control",
         "description": "Use PWM duty cycle control to adjust DC motor speed with stable output behavior.",
         "difficulty": "intermediate",
