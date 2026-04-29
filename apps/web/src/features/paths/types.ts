@@ -7,9 +7,26 @@ export interface LearningPath {
   order: number;
 }
 
-export interface PathLabsGroup {
-  path: LearningPath;
+export interface LearningModule {
+  id: string;
+  path_id: string;
+  slug: string;
+  title: string;
+  description: string;
+  order_index: number;
+  is_published: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ModuleLabsGroup {
+  module: LearningModule;
   labs: Lab[];
+}
+
+export interface PathModulesLabsGroup {
+  path: LearningPath;
+  modules: ModuleLabsGroup[];
 }
 
 export interface PathProgressSummary {

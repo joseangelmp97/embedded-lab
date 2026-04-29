@@ -112,7 +112,7 @@ export default function LabsPage() {
         ) : null}
 
         {!isLoading && !error && pathLabs.length > 0
-          ? pathLabs.map(({ path, labs }) => (
+          ? pathLabs.map(({ path, modules }) => (
               <section key={path.id} className="path-group" aria-label={`Path ${path.name}`}>
                 <header className="welcome-card path-group-header">
                   <h2>{path.name}</h2>
@@ -120,30 +120,48 @@ export default function LabsPage() {
                   {pathProgressById[path.id] ? <PathProgressSummary summary={pathProgressById[path.id]} compact /> : null}
                 </header>
 
-                {labs.length === 0 ? (
+                {modules.length === 0 ? (
                   <section className="welcome-card" aria-live="polite">
-                    <h2>No labs in this path</h2>
-                    <p className="subtitle">Labs will appear here as soon as they are assigned to this path.</p>
+                    <h2>No modules in this path</h2>
+                    <p className="subtitle">Modules will appear here as soon as they are assigned to this path.</p>
                   </section>
                 ) : (
-                  <section className="labs-grid" aria-label={`${path.name} labs`}>
-                    {labs.map((lab) => {
-                      const locked = isLabLocked(lab, getLabStatus);
+                  <div className="module-group-list" aria-label={`${path.name} modules`}>
+                    {modules.map(({ module, labs }) => (
+                      <section key={module.id} className="module-group" aria-label={`Module ${module.title}`}>
+                        <header className="welcome-card module-group-header">
+                          <h3>{module.title}</h3>
+                          <p className="subtitle">{module.description}</p>
+                        </header>
 
-                      return (
-                        <LabCard
-                          key={lab.id}
-                          lab={lab}
-                          progressStatus={getLabStatus(lab.id)}
-                          isLocked={locked}
-                          isSubmitting={Boolean(pendingActions[lab.id])}
-                          onStart={() => void startLabProgress(lab.id)}
-                          onComplete={() => handleCompleteLab(lab.id)}
-                          onReopen={() => void reopenLabProgress(lab.id)}
-                        />
-                      );
-                    })}
-                  </section>
+                        {labs.length === 0 ? (
+                          <section className="welcome-card" aria-live="polite">
+                            <h3>No labs in this module</h3>
+                            <p className="subtitle">Labs will appear here as soon as they are assigned to this module.</p>
+                          </section>
+                        ) : (
+                          <section className="labs-grid" aria-label={`${module.title} labs`}>
+                            {labs.map((lab) => {
+                              const locked = isLabLocked(lab, getLabStatus);
+
+                              return (
+                                <LabCard
+                                  key={lab.id}
+                                  lab={lab}
+                                  progressStatus={getLabStatus(lab.id)}
+                                  isLocked={locked}
+                                  isSubmitting={Boolean(pendingActions[lab.id])}
+                                  onStart={() => void startLabProgress(lab.id)}
+                                  onComplete={() => handleCompleteLab(lab.id)}
+                                  onReopen={() => void reopenLabProgress(lab.id)}
+                                />
+                              );
+                            })}
+                          </section>
+                        )}
+                      </section>
+                    ))}
+                  </div>
                 )}
               </section>
             ))

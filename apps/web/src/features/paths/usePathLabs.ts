@@ -2,12 +2,12 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { ApiClientError } from "@/lib/apiClient";
-import { fetchPathLabs, fetchPaths } from "@/features/paths/pathsService";
+import { fetchModuleLabs, fetchPathModules, fetchPaths } from "@/features/paths/pathsService";
 
-import type { PathLabsGroup } from "@/features/paths/types";
+import type { PathModulesLabsGroup } from "@/features/paths/types";
 
 interface UsePathLabsResult {
-  pathLabs: PathLabsGroup[];
+  pathLabs: PathModulesLabsGroup[];
   isLoading: boolean;
   error: string | null;
   reload: () => Promise<void>;
@@ -26,7 +26,7 @@ function mapPathLabsError(caughtError: unknown): string {
 }
 
 export function usePathLabs(enabled: boolean): UsePathLabsResult {
-  const [pathLabs, setPathLabs] = useState<PathLabsGroup[]>([]);
+  const [pathLabs, setPathLabs] = useState<PathModulesLabsGroup[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -43,10 +43,20 @@ export function usePathLabs(enabled: boolean): UsePathLabsResult {
     try {
       const paths = await fetchPaths();
       const groups = await Promise.all(
-        paths.map(async (path) => ({
-          path,
-          labs: await fetchPathLabs(path.id)
-        }))
+        paths.map(async (path) => {
+          const pathModules = await fetchPathModules(path.id);
+          const modules = await Promise.all(
+            pathModules.map(async (module) => ({
+              module,
+              labs: await fetchModuleLabs(module.id)
+            }))
+          );
+
+          return {
+            path,
+            modules
+          };
+        })
       );
 
       setPathLabs(
@@ -55,7 +65,13 @@ export function usePathLabs(enabled: boolean): UsePathLabsResult {
           .sort((left, right) => left.path.order - right.path.order)
           .map((group) => ({
             ...group,
-            labs: group.labs.slice().sort((left, right) => left.order_index - right.order_index)
+            modules: group.modules
+              .slice()
+              .sort((left, right) => left.module.order_index - right.module.order_index)
+              .map((moduleGroup) => ({
+                ...moduleGroup,
+                labs: moduleGroup.labs.slice().sort((left, right) => left.order_index - right.order_index)
+              }))
           }))
       );
     } catch (caughtError) {

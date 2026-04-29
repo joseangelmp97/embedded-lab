@@ -311,8 +311,23 @@ body {
   gap: 1rem;
 }
 
+.module-group-list,
+.module-group {
+  display: grid;
+  gap: 1rem;
+}
+
 .path-group-header {
   gap: 0.5rem;
+}
+
+.module-group-header {
+  gap: 0.5rem;
+}
+
+.module-group-header h3 {
+  margin: 0;
+  font-size: 1.1rem;
 }
 
 .lab-card {
