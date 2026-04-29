@@ -632,9 +632,9 @@ Use these values consistently across data model, architecture, and API contract.
 
 ---
 
-## 8) Phase 1 Addendum: Interactive Lab Entities
+## 8) Phase 2 Addendum: Interactive Lab Entities (Data Model Skeleton)
 
-### LabExercise
+### Exercise
 
 Purpose:
 - Represents one evaluable exercise inside a lab.
@@ -646,15 +646,18 @@ Main fields:
 - `prompt`
 - `order_index`
 - `max_score`
-- `evaluation_mode` (`deterministic`)
+- `is_required`
+- `status` (`draft`, `published`, `archived`)
+- `content_version`
 - `metadata_json`
-- `is_published`
+- `hint_policy_json`
+- `explanation`
 - `created_at`
 - `updated_at`
 
 Relationships:
 - Many-to-one with `Lab`
-- One `LabExercise` has many `ExerciseAttempt`
+- One `Exercise` has many `ExerciseAttempt`
 
 ### LabAttemptSession
 
@@ -666,14 +669,15 @@ Main fields:
 - `user_id`
 - `lab_id`
 - `attempt_number`
-- `status` (`started`, `submitted`, `evaluated`, `failed`)
-- `started_at`
-- `submitted_at` (nullable)
-- `evaluated_at` (nullable)
+- `lab_attempt_status` (`started`, `submitted`, `evaluated`, `failed`)
 - `total_score_awarded`
 - `max_score`
-- `evaluation_summary_json`
-- `created_at`
+- `required_exercises_correct`
+- `required_exercises_total`
+- `hints_used_count`
+- `content_version`
+- `started_at`
+- `completed_at` (nullable)
 - `updated_at`
 
 Relationships:
@@ -689,20 +693,20 @@ Purpose:
 Main fields:
 - `id`
 - `lab_attempt_session_id`
-- `lab_exercise_id`
+- `exercise_id`
 - `response_payload_json`
 - `is_correct`
 - `score_awarded`
 - `max_score`
-- `evaluation_mode_used` (`deterministic`)
 - `feedback`
 - `evaluation_details_json` (optional)
+- `hint_shown`
+- `hint_index_shown` (nullable)
+- `attempt_sequence`
 - `evaluated_at`
-- `created_at`
-- `updated_at`
 
 Constraints:
-- Unique per (`lab_attempt_session_id`, `lab_exercise_id`) in Phase 1.
+- Foreign keys to `LabAttemptSession` and `Exercise`.
 
 ### Compatibility Constraints
 
@@ -711,5 +715,5 @@ Constraints:
   - `POST /api/v1/labs/{lab_id}/start`
   - `POST /api/v1/labs/{lab_id}/complete`
   - `POST /api/v1/labs/{lab_id}/reopen`
-- Lab exercise evaluation is deterministic-only in Phase 1.
+- Phase 2 scope is schema-only (no evaluation or lifecycle endpoints in this slice).
 
