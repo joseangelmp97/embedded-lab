@@ -1,9 +1,14 @@
+import json
+from datetime import datetime, timezone
+
 from fastapi import HTTPException, status
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.modules.attempts.models.exercise_attempt import ExerciseAttempt
 from app.modules.attempts.models.lab_attempt_session import LabAttemptSession
 from app.modules.lab_progress.services.lab_progress_service import start_lab_progress
+from app.modules.labs.models.exercise import Exercise
 from app.modules.labs.services.lab_service import get_lab_by_id, list_published_lab_exercises
 from app.modules.users.models.user import User
 
@@ -71,3 +76,121 @@ def get_user_lab_attempt(db: Session, user_id: str, lab_id: str, attempt_id: str
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Attempt not found")
 
     return attempt
+
+
+SUPPORTED_EXERCISE_TYPES = {"multiple_choice"}
+
+
+def _extract_correct_option_id(metadata_json: str | None) -> str:
+    if metadata_json is None:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Exercise metadata is invalid")
+
+    try:
+        parsed = json.loads(metadata_json)
+    except json.JSONDecodeError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Exercise metadata is invalid") from exc
+
+    if not isinstance(parsed, dict):
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Exercise metadata is invalid")
+
+    for key in ("correct_option_id", "correct_answer", "answer"):
+        value = parsed.get(key)
+        if isinstance(value, str) and value.strip():
+            return value
+
+    raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Exercise metadata is missing correct option")
+
+
+def _extract_selected_option_id(response_payload_json: dict) -> str:
+    selected_option_id = response_payload_json.get("selected_option_id")
+    if not isinstance(selected_option_id, str) or not selected_option_id.strip():
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="response_payload_json.selected_option_id is required",
+        )
+    return selected_option_id
+
+
+def _recompute_attempt_aggregates(db: Session, attempt: LabAttemptSession) -> None:
+    exercise_scores = db.execute(
+        select(ExerciseAttempt.exercise_id, func.max(ExerciseAttempt.score_awarded))
+        .where(ExerciseAttempt.lab_attempt_session_id == attempt.id)
+        .group_by(ExerciseAttempt.exercise_id)
+    ).all()
+    attempt.total_score_awarded = sum(int(row[1] or 0) for row in exercise_scores)
+
+    required_best_scores = db.execute(
+        select(Exercise.id, func.max(ExerciseAttempt.score_awarded))
+        .join(ExerciseAttempt, ExerciseAttempt.exercise_id == Exercise.id)
+        .where(
+            ExerciseAttempt.lab_attempt_session_id == attempt.id,
+            Exercise.is_required.is_(True),
+        )
+        .group_by(Exercise.id)
+    ).all()
+    attempt.required_exercises_correct = sum(1 for _, best_score in required_best_scores if int(best_score or 0) > 0)
+
+
+def submit_lab_exercise_attempt(
+    db: Session,
+    user_id: str,
+    lab_id: str,
+    attempt_id: str,
+    exercise_id: str,
+    response_payload_json: dict,
+) -> tuple[ExerciseAttempt, LabAttemptSession]:
+    get_lab_by_id(db=db, lab_id=lab_id)
+
+    attempt = db.scalar(select(LabAttemptSession).where(LabAttemptSession.id == attempt_id))
+    if attempt is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Attempt not found")
+    if attempt.user_id != user_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Attempt does not belong to current user")
+    if attempt.lab_id != lab_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Attempt not found for lab")
+    if attempt.lab_attempt_status != "started":
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Attempt is not active")
+
+    exercise = db.scalar(select(Exercise).where(Exercise.id == exercise_id))
+    if exercise is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Exercise not found")
+    if exercise.lab_id != lab_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Exercise not found for lab")
+    if exercise.exercise_type not in SUPPORTED_EXERCISE_TYPES:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Exercise type '{exercise.exercise_type}' is not supported",
+        )
+
+    selected_option_id = _extract_selected_option_id(response_payload_json=response_payload_json)
+    correct_option_id = _extract_correct_option_id(exercise.metadata_json)
+
+    is_correct = selected_option_id == correct_option_id
+    score_awarded = exercise.max_score if is_correct else 0
+    feedback = "Correct answer." if is_correct else "Incorrect answer. Try again."
+
+    latest_sequence = db.scalar(
+        select(func.max(ExerciseAttempt.attempt_sequence)).where(ExerciseAttempt.lab_attempt_session_id == attempt.id)
+    )
+    next_sequence = int(latest_sequence or 0) + 1
+
+    exercise_attempt = ExerciseAttempt(
+        lab_attempt_session_id=attempt.id,
+        exercise_id=exercise.id,
+        response_payload_json=json.dumps(response_payload_json),
+        is_correct=is_correct,
+        score_awarded=score_awarded,
+        max_score=exercise.max_score,
+        feedback=feedback,
+        evaluation_details_json=json.dumps({"exercise_type": "multiple_choice", "mode": "deterministic"}),
+        attempt_sequence=next_sequence,
+        evaluated_at=datetime.now(timezone.utc),
+    )
+    db.add(exercise_attempt)
+    db.flush()
+
+    _recompute_attempt_aggregates(db=db, attempt=attempt)
+    db.commit()
+    db.refresh(exercise_attempt)
+    db.refresh(attempt)
+    return exercise_attempt, attempt

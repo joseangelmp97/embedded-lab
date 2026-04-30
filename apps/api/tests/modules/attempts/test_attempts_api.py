@@ -7,6 +7,7 @@ from sqlalchemy.orm import sessionmaker
 
 from app.main import app
 from app.modules.attempts.models.lab_attempt_session import LabAttemptSession
+from app.modules.labs.models.exercise import Exercise
 from app.modules.labs.services.lab_service import INITIAL_LABS, seed_initial_labs
 from app.modules.paths.services.path_service import assign_labs_to_paths, seed_initial_paths
 from app.shared.db.base import Base
@@ -196,3 +197,184 @@ def test_lab_progress_endpoints_behavior_remains_unchanged(test_context):
     assert complete_response.json()["status"] == "completed"
     assert reopen_response.status_code == 200
     assert reopen_response.json()["status"] == "in_progress"
+
+
+def _create_mcq_exercise(session_local, lab_id: str, exercise_id: str = "exercise-mcq", exercise_type: str = "multiple_choice"):
+    db = session_local()
+    try:
+        db.add(
+            Exercise(
+                id=exercise_id,
+                lab_id=lab_id,
+                exercise_type=exercise_type,
+                prompt="Pick the correct option",
+                order_index=1,
+                max_score=10,
+                status="published",
+                metadata_json='{"correct_option_id":"opt-a"}',
+            )
+        )
+        db.commit()
+    finally:
+        db.close()
+
+
+def test_submit_correct_mcq_returns_full_score(test_context):
+    client = test_context["client"]
+    session_local = test_context["session_local"]
+    headers = _auth_headers(client)
+    lab_id = str(INITIAL_LABS[0]["id"])
+    _create_mcq_exercise(session_local=session_local, lab_id=lab_id)
+
+    attempt_response = client.post(f"/api/v1/labs/{lab_id}/attempts", headers=headers)
+    attempt_id = attempt_response.json()["id"]
+
+    response = client.post(
+        f"/api/v1/labs/{lab_id}/attempts/{attempt_id}/submit",
+        headers=headers,
+        json={"exercise_id": "exercise-mcq", "response_payload_json": {"selected_option_id": "opt-a"}},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["is_correct"] is True
+    assert body["score_awarded"] == 10
+    assert body["max_score"] == 10
+    assert body["session"]["total_score_awarded"] == 10
+
+
+def test_submit_incorrect_mcq_returns_zero_score(test_context):
+    client = test_context["client"]
+    session_local = test_context["session_local"]
+    headers = _auth_headers(client)
+    lab_id = str(INITIAL_LABS[0]["id"])
+    _create_mcq_exercise(session_local=session_local, lab_id=lab_id)
+
+    attempt_response = client.post(f"/api/v1/labs/{lab_id}/attempts", headers=headers)
+    attempt_id = attempt_response.json()["id"]
+
+    response = client.post(
+        f"/api/v1/labs/{lab_id}/attempts/{attempt_id}/submit",
+        headers=headers,
+        json={"exercise_id": "exercise-mcq", "response_payload_json": {"selected_option_id": "opt-b"}},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["is_correct"] is False
+    assert body["score_awarded"] == 0
+    assert body["session"]["total_score_awarded"] == 0
+
+
+def test_submit_enforces_attempt_ownership(test_context):
+    client = test_context["client"]
+    session_local = test_context["session_local"]
+    owner_headers = _auth_headers(client)
+    other_headers = _auth_headers(client)
+    lab_id = str(INITIAL_LABS[0]["id"])
+    _create_mcq_exercise(session_local=session_local, lab_id=lab_id)
+
+    attempt_response = client.post(f"/api/v1/labs/{lab_id}/attempts", headers=owner_headers)
+    attempt_id = attempt_response.json()["id"]
+
+    response = client.post(
+        f"/api/v1/labs/{lab_id}/attempts/{attempt_id}/submit",
+        headers=other_headers,
+        json={"exercise_id": "exercise-mcq", "response_payload_json": {"selected_option_id": "opt-a"}},
+    )
+
+    assert response.status_code == 403
+
+
+def test_submit_rejects_attempt_and_lab_mismatch(test_context):
+    client = test_context["client"]
+    session_local = test_context["session_local"]
+    headers = _auth_headers(client)
+    source_lab_id = str(INITIAL_LABS[0]["id"])
+    other_lab_id = str(INITIAL_LABS[1]["id"])
+    _create_mcq_exercise(session_local=session_local, lab_id=source_lab_id)
+
+    attempt_response = client.post(f"/api/v1/labs/{source_lab_id}/attempts", headers=headers)
+    attempt_id = attempt_response.json()["id"]
+
+    response = client.post(
+        f"/api/v1/labs/{other_lab_id}/attempts/{attempt_id}/submit",
+        headers=headers,
+        json={"exercise_id": "exercise-mcq", "response_payload_json": {"selected_option_id": "opt-a"}},
+    )
+
+    assert response.status_code == 404
+
+
+def test_submit_rejects_inactive_attempt(test_context):
+    client = test_context["client"]
+    session_local = test_context["session_local"]
+    headers = _auth_headers(client)
+    lab_id = str(INITIAL_LABS[0]["id"])
+    _create_mcq_exercise(session_local=session_local, lab_id=lab_id)
+
+    attempt_response = client.post(f"/api/v1/labs/{lab_id}/attempts", headers=headers)
+    attempt_id = attempt_response.json()["id"]
+
+    db = session_local()
+    try:
+        attempt = db.scalar(select(LabAttemptSession).where(LabAttemptSession.id == attempt_id))
+        assert attempt is not None
+        attempt.lab_attempt_status = "completed"
+        db.commit()
+    finally:
+        db.close()
+
+    response = client.post(
+        f"/api/v1/labs/{lab_id}/attempts/{attempt_id}/submit",
+        headers=headers,
+        json={"exercise_id": "exercise-mcq", "response_payload_json": {"selected_option_id": "opt-a"}},
+    )
+
+    assert response.status_code == 409
+
+
+def test_repeated_submissions_use_best_score_per_exercise(test_context):
+    client = test_context["client"]
+    session_local = test_context["session_local"]
+    headers = _auth_headers(client)
+    lab_id = str(INITIAL_LABS[0]["id"])
+    _create_mcq_exercise(session_local=session_local, lab_id=lab_id)
+
+    attempt_response = client.post(f"/api/v1/labs/{lab_id}/attempts", headers=headers)
+    attempt_id = attempt_response.json()["id"]
+
+    first_response = client.post(
+        f"/api/v1/labs/{lab_id}/attempts/{attempt_id}/submit",
+        headers=headers,
+        json={"exercise_id": "exercise-mcq", "response_payload_json": {"selected_option_id": "opt-a"}},
+    )
+    second_response = client.post(
+        f"/api/v1/labs/{lab_id}/attempts/{attempt_id}/submit",
+        headers=headers,
+        json={"exercise_id": "exercise-mcq", "response_payload_json": {"selected_option_id": "opt-a"}},
+    )
+
+    assert first_response.status_code == 200
+    assert second_response.status_code == 200
+    assert first_response.json()["session"]["total_score_awarded"] == 10
+    assert second_response.json()["session"]["total_score_awarded"] == 10
+
+
+def test_submit_rejects_unsupported_exercise_type(test_context):
+    client = test_context["client"]
+    session_local = test_context["session_local"]
+    headers = _auth_headers(client)
+    lab_id = str(INITIAL_LABS[0]["id"])
+    _create_mcq_exercise(session_local=session_local, lab_id=lab_id, exercise_id="exercise-text", exercise_type="short_text")
+
+    attempt_response = client.post(f"/api/v1/labs/{lab_id}/attempts", headers=headers)
+    attempt_id = attempt_response.json()["id"]
+
+    response = client.post(
+        f"/api/v1/labs/{lab_id}/attempts/{attempt_id}/submit",
+        headers=headers,
+        json={"exercise_id": "exercise-text", "response_payload_json": {"selected_option_id": "opt-a"}},
+    )
+
+    assert response.status_code == 422
