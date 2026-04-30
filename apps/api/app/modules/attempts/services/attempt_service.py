@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.modules.attempts.models.exercise_attempt import ExerciseAttempt
 from app.modules.attempts.models.lab_attempt_session import LabAttemptSession
+from app.modules.evaluation.services import evaluate_exercise_submission
 from app.modules.lab_progress.services.lab_progress_service import start_lab_progress
 from app.modules.labs.models.exercise import Exercise
 from app.modules.labs.services.lab_service import get_lab_by_id, list_published_lab_exercises
@@ -78,39 +79,6 @@ def get_user_lab_attempt(db: Session, user_id: str, lab_id: str, attempt_id: str
     return attempt
 
 
-SUPPORTED_EXERCISE_TYPES = {"multiple_choice"}
-
-
-def _extract_correct_option_id(metadata_json: str | None) -> str:
-    if metadata_json is None:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Exercise metadata is invalid")
-
-    try:
-        parsed = json.loads(metadata_json)
-    except json.JSONDecodeError as exc:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Exercise metadata is invalid") from exc
-
-    if not isinstance(parsed, dict):
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Exercise metadata is invalid")
-
-    for key in ("correct_option_id", "correct_answer", "answer"):
-        value = parsed.get(key)
-        if isinstance(value, str) and value.strip():
-            return value
-
-    raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Exercise metadata is missing correct option")
-
-
-def _extract_selected_option_id(response_payload_json: dict) -> str:
-    selected_option_id = response_payload_json.get("selected_option_id")
-    if not isinstance(selected_option_id, str) or not selected_option_id.strip():
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="response_payload_json.selected_option_id is required",
-        )
-    return selected_option_id
-
-
 def _recompute_attempt_aggregates(db: Session, attempt: LabAttemptSession) -> None:
     exercise_scores = db.execute(
         select(ExerciseAttempt.exercise_id, func.max(ExerciseAttempt.score_awarded))
@@ -156,18 +124,12 @@ def submit_lab_exercise_attempt(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Exercise not found")
     if exercise.lab_id != lab_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Exercise not found for lab")
-    if exercise.exercise_type not in SUPPORTED_EXERCISE_TYPES:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=f"Exercise type '{exercise.exercise_type}' is not supported",
-        )
-
-    selected_option_id = _extract_selected_option_id(response_payload_json=response_payload_json)
-    correct_option_id = _extract_correct_option_id(exercise.metadata_json)
-
-    is_correct = selected_option_id == correct_option_id
-    score_awarded = exercise.max_score if is_correct else 0
-    feedback = "Correct answer." if is_correct else "Incorrect answer. Try again."
+    evaluation = evaluate_exercise_submission(
+        exercise_type=exercise.exercise_type,
+        metadata_json=exercise.metadata_json,
+        response_payload_json=response_payload_json,
+        max_score=exercise.max_score,
+    )
 
     latest_sequence = db.scalar(
         select(func.max(ExerciseAttempt.attempt_sequence)).where(ExerciseAttempt.lab_attempt_session_id == attempt.id)
@@ -178,11 +140,11 @@ def submit_lab_exercise_attempt(
         lab_attempt_session_id=attempt.id,
         exercise_id=exercise.id,
         response_payload_json=json.dumps(response_payload_json),
-        is_correct=is_correct,
-        score_awarded=score_awarded,
+        is_correct=evaluation.is_correct,
+        score_awarded=evaluation.score_awarded,
         max_score=exercise.max_score,
-        feedback=feedback,
-        evaluation_details_json=json.dumps({"exercise_type": "multiple_choice", "mode": "deterministic"}),
+        feedback=evaluation.feedback,
+        evaluation_details_json=json.dumps(evaluation.details),
         attempt_sequence=next_sequence,
         evaluated_at=datetime.now(timezone.utc),
     )

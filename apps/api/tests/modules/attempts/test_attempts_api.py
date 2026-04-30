@@ -199,7 +199,14 @@ def test_lab_progress_endpoints_behavior_remains_unchanged(test_context):
     assert reopen_response.json()["status"] == "in_progress"
 
 
-def _create_mcq_exercise(session_local, lab_id: str, exercise_id: str = "exercise-mcq", exercise_type: str = "multiple_choice"):
+def _create_exercise(
+    session_local,
+    lab_id: str,
+    exercise_id: str,
+    exercise_type: str,
+    metadata_json: str,
+    max_score: int = 10,
+):
     db = session_local()
     try:
         db.add(
@@ -209,14 +216,24 @@ def _create_mcq_exercise(session_local, lab_id: str, exercise_id: str = "exercis
                 exercise_type=exercise_type,
                 prompt="Pick the correct option",
                 order_index=1,
-                max_score=10,
+                max_score=max_score,
                 status="published",
-                metadata_json='{"correct_option_id":"opt-a"}',
+                metadata_json=metadata_json,
             )
         )
         db.commit()
     finally:
         db.close()
+
+
+def _create_mcq_exercise(session_local, lab_id: str, exercise_id: str = "exercise-mcq", exercise_type: str = "multiple_choice"):
+    _create_exercise(
+        session_local=session_local,
+        lab_id=lab_id,
+        exercise_id=exercise_id,
+        exercise_type=exercise_type,
+        metadata_json='{"correct_option_id":"opt-a"}',
+    )
 
 
 def test_submit_correct_mcq_returns_full_score(test_context):
@@ -366,7 +383,7 @@ def test_submit_rejects_unsupported_exercise_type(test_context):
     session_local = test_context["session_local"]
     headers = _auth_headers(client)
     lab_id = str(INITIAL_LABS[0]["id"])
-    _create_mcq_exercise(session_local=session_local, lab_id=lab_id, exercise_id="exercise-text", exercise_type="short_text")
+    _create_mcq_exercise(session_local=session_local, lab_id=lab_id, exercise_id="exercise-unsupported", exercise_type="code")
 
     attempt_response = client.post(f"/api/v1/labs/{lab_id}/attempts", headers=headers)
     attempt_id = attempt_response.json()["id"]
@@ -374,7 +391,224 @@ def test_submit_rejects_unsupported_exercise_type(test_context):
     response = client.post(
         f"/api/v1/labs/{lab_id}/attempts/{attempt_id}/submit",
         headers=headers,
-        json={"exercise_id": "exercise-text", "response_payload_json": {"selected_option_id": "opt-a"}},
+        json={"exercise_id": "exercise-unsupported", "response_payload_json": {"selected_option_id": "opt-a"}},
+    )
+
+    assert response.status_code == 422
+
+
+def test_submit_fill_blank_all_correct(test_context):
+    client = test_context["client"]
+    session_local = test_context["session_local"]
+    headers = _auth_headers(client)
+    lab_id = str(INITIAL_LABS[0]["id"])
+    _create_exercise(
+        session_local=session_local,
+        lab_id=lab_id,
+        exercise_id="exercise-fill-1",
+        exercise_type="fill_blank",
+        metadata_json='{"correct_answers":["output","high"]}',
+    )
+
+    attempt_id = client.post(f"/api/v1/labs/{lab_id}/attempts", headers=headers).json()["id"]
+    response = client.post(
+        f"/api/v1/labs/{lab_id}/attempts/{attempt_id}/submit",
+        headers=headers,
+        json={"exercise_id": "exercise-fill-1", "response_payload_json": {"answers": ["output", "high"]}},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["is_correct"] is True
+    assert body["score_awarded"] == 10
+
+
+def test_submit_fill_blank_partially_correct(test_context):
+    client = test_context["client"]
+    session_local = test_context["session_local"]
+    headers = _auth_headers(client)
+    lab_id = str(INITIAL_LABS[0]["id"])
+    _create_exercise(
+        session_local=session_local,
+        lab_id=lab_id,
+        exercise_id="exercise-fill-2",
+        exercise_type="fill_blank",
+        metadata_json='{"correct_answers":["output","high"]}',
+        max_score=9,
+    )
+
+    attempt_id = client.post(f"/api/v1/labs/{lab_id}/attempts", headers=headers).json()["id"]
+    response = client.post(
+        f"/api/v1/labs/{lab_id}/attempts/{attempt_id}/submit",
+        headers=headers,
+        json={"exercise_id": "exercise-fill-2", "response_payload_json": {"answers": ["output", "low"]}},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["is_correct"] is False
+    assert body["score_awarded"] == 4
+    assert "[1]" in body["feedback"]
+
+
+def test_submit_fill_blank_all_incorrect(test_context):
+    client = test_context["client"]
+    session_local = test_context["session_local"]
+    headers = _auth_headers(client)
+    lab_id = str(INITIAL_LABS[0]["id"])
+    _create_exercise(
+        session_local=session_local,
+        lab_id=lab_id,
+        exercise_id="exercise-fill-3",
+        exercise_type="fill_blank",
+        metadata_json='{"correct_answers":["output","high"]}',
+    )
+
+    attempt_id = client.post(f"/api/v1/labs/{lab_id}/attempts", headers=headers).json()["id"]
+    response = client.post(
+        f"/api/v1/labs/{lab_id}/attempts/{attempt_id}/submit",
+        headers=headers,
+        json={"exercise_id": "exercise-fill-3", "response_payload_json": {"answers": ["input", "low"]}},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["is_correct"] is False
+    assert body["score_awarded"] == 0
+    assert "[0, 1]" in body["feedback"]
+
+
+def test_submit_fill_blank_normalization_case_and_spacing(test_context):
+    client = test_context["client"]
+    session_local = test_context["session_local"]
+    headers = _auth_headers(client)
+    lab_id = str(INITIAL_LABS[0]["id"])
+    _create_exercise(
+        session_local=session_local,
+        lab_id=lab_id,
+        exercise_id="exercise-fill-4",
+        exercise_type="fill_blank",
+        metadata_json='{"correct_answers":["Output","HIGH"]}',
+    )
+
+    attempt_id = client.post(f"/api/v1/labs/{lab_id}/attempts", headers=headers).json()["id"]
+    response = client.post(
+        f"/api/v1/labs/{lab_id}/attempts/{attempt_id}/submit",
+        headers=headers,
+        json={"exercise_id": "exercise-fill-4", "response_payload_json": {"answers": {"0": "  out put  ", "1": " high "}}},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["is_correct"] is True
+
+
+def test_submit_short_text_correct_keyword_match(test_context):
+    client = test_context["client"]
+    session_local = test_context["session_local"]
+    headers = _auth_headers(client)
+    lab_id = str(INITIAL_LABS[0]["id"])
+    _create_exercise(
+        session_local=session_local,
+        lab_id=lab_id,
+        exercise_id="exercise-short-1",
+        exercise_type="short_text",
+        metadata_json='{"accepted_answers":["limit current","protect led"]}',
+    )
+
+    attempt_id = client.post(f"/api/v1/labs/{lab_id}/attempts", headers=headers).json()["id"]
+    response = client.post(
+        f"/api/v1/labs/{lab_id}/attempts/{attempt_id}/submit",
+        headers=headers,
+        json={
+            "exercise_id": "exercise-short-1",
+            "response_payload_json": {"answer": "It helps LIMIT CURRENT to keep hardware safe."},
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["is_correct"] is True
+    assert body["score_awarded"] == 10
+
+
+def test_submit_short_text_incorrect_response(test_context):
+    client = test_context["client"]
+    session_local = test_context["session_local"]
+    headers = _auth_headers(client)
+    lab_id = str(INITIAL_LABS[0]["id"])
+    _create_exercise(
+        session_local=session_local,
+        lab_id=lab_id,
+        exercise_id="exercise-short-2",
+        exercise_type="short_text",
+        metadata_json='{"accepted_answers":["limit current","protect led"]}',
+    )
+
+    attempt_id = client.post(f"/api/v1/labs/{lab_id}/attempts", headers=headers).json()["id"]
+    response = client.post(
+        f"/api/v1/labs/{lab_id}/attempts/{attempt_id}/submit",
+        headers=headers,
+        json={"exercise_id": "exercise-short-2", "response_payload_json": {"answer": "It makes the LED brighter."}},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["is_correct"] is False
+    assert body["score_awarded"] == 0
+
+
+def test_submit_short_text_respects_min_matches(test_context):
+    client = test_context["client"]
+    session_local = test_context["session_local"]
+    headers = _auth_headers(client)
+    lab_id = str(INITIAL_LABS[0]["id"])
+    _create_exercise(
+        session_local=session_local,
+        lab_id=lab_id,
+        exercise_id="exercise-short-3",
+        exercise_type="short_text",
+        metadata_json='{"accepted_answers":["limit current","protect led","protect gpio"],"min_matches":2}',
+    )
+
+    attempt_id = client.post(f"/api/v1/labs/{lab_id}/attempts", headers=headers).json()["id"]
+    fail_response = client.post(
+        f"/api/v1/labs/{lab_id}/attempts/{attempt_id}/submit",
+        headers=headers,
+        json={"exercise_id": "exercise-short-3", "response_payload_json": {"answer": "It can limit current."}},
+    )
+    pass_response = client.post(
+        f"/api/v1/labs/{lab_id}/attempts/{attempt_id}/submit",
+        headers=headers,
+        json={
+            "exercise_id": "exercise-short-3",
+            "response_payload_json": {"answer": "It can limit current and protect LED circuits."},
+        },
+    )
+
+    assert fail_response.status_code == 200
+    assert fail_response.json()["is_correct"] is False
+    assert pass_response.status_code == 200
+    assert pass_response.json()["is_correct"] is True
+
+
+def test_submit_rejects_malformed_fill_blank_metadata(test_context):
+    client = test_context["client"]
+    session_local = test_context["session_local"]
+    headers = _auth_headers(client)
+    lab_id = str(INITIAL_LABS[0]["id"])
+    _create_exercise(
+        session_local=session_local,
+        lab_id=lab_id,
+        exercise_id="exercise-fill-invalid",
+        exercise_type="fill_blank",
+        metadata_json='{"foo":["bar"]}',
+    )
+
+    attempt_id = client.post(f"/api/v1/labs/{lab_id}/attempts", headers=headers).json()["id"]
+    response = client.post(
+        f"/api/v1/labs/{lab_id}/attempts/{attempt_id}/submit",
+        headers=headers,
+        json={"exercise_id": "exercise-fill-invalid", "response_payload_json": {"answers": ["bar"]}},
     )
 
     assert response.status_code == 422
