@@ -7,7 +7,7 @@ from sqlalchemy.orm import sessionmaker
 
 from app.main import app
 from app.modules.labs.models.exercise import Exercise
-from app.modules.labs.services.lab_service import INITIAL_LABS, seed_initial_labs
+from app.modules.labs.services.lab_service import INITIAL_INTERACTIVE_EXERCISES, INITIAL_LABS, seed_initial_labs
 from app.shared.db.base import Base
 from app.shared.db.dependencies import get_db
 
@@ -95,7 +95,7 @@ def test_labs_list_requires_authentication(client: TestClient):
 
 def test_lab_exercises_returns_ordered_published_exercises(client: TestClient):
     token = _authenticate(client)
-    lab_id = str(INITIAL_LABS[0]["id"])
+    lab_id = str(INITIAL_LABS[2]["id"])
 
     db_generator = app.dependency_overrides[get_db]()
     db = next(db_generator)
@@ -163,12 +163,37 @@ def test_lab_exercises_returns_empty_list_when_no_published_exercises(client: Te
     token = _authenticate(client)
 
     response = client.get(
-        f"/api/v1/labs/{INITIAL_LABS[1]['id']}/exercises",
+        f"/api/v1/labs/{INITIAL_LABS[2]['id']}/exercises",
         headers={"Authorization": f"Bearer {token}"},
     )
 
     assert response.status_code == 200
     assert response.json() == []
+
+
+def test_lab_exercises_returns_seeded_phase8_exercises(client: TestClient):
+    token = _authenticate(client)
+    lab_id = "digital-logic-voltage-levels"
+
+    response = client.get(f"/api/v1/labs/{lab_id}/exercises", headers={"Authorization": f"Bearer {token}"})
+
+    assert response.status_code == 200
+    body = response.json()
+    expected_ids = [item["id"] for item in INITIAL_INTERACTIVE_EXERCISES if item["lab_id"] == lab_id]
+    assert [exercise["id"] for exercise in body] == expected_ids
+
+
+def test_lab_exercises_hides_seeded_private_evaluation_metadata(client: TestClient):
+    token = _authenticate(client)
+
+    response = client.get("/api/v1/labs/gpio-led-basics/exercises", headers={"Authorization": f"Bearer {token}"})
+
+    assert response.status_code == 200
+    short_text_item = next(item for item in response.json() if item["id"] == "ex-gpio-led-short-current-limiting")
+    fill_blank_item = next(item for item in response.json() if item["id"] == "ex-gpio-led-fill-polarity")
+
+    assert "accepted_answers" not in (short_text_item["metadata_json"] or {})
+    assert "correct_answers" not in (fill_blank_item["metadata_json"] or {})
 
 
 def test_lab_exercises_hides_sensitive_fields(client: TestClient):

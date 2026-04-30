@@ -43,6 +43,135 @@ INITIAL_LABS: tuple[dict[str, object], ...] = (
 )
 
 
+INITIAL_INTERACTIVE_EXERCISES: tuple[dict[str, object], ...] = (
+    {
+        "id": "ex-digital-logic-mcq-thresholds",
+        "lab_id": "digital-logic-voltage-levels",
+        "exercise_type": "multiple_choice",
+        "prompt": "A 3.3V microcontroller pin reads 3.0V. Which logic state is the safest interpretation?",
+        "order_index": 1,
+        "max_score": 10,
+        "is_required": False,
+        "status": "published",
+        "content_version": 1,
+        "metadata_json": json.dumps(
+            {
+                "options": [
+                    {"id": "opt-high", "label": "Logic HIGH"},
+                    {"id": "opt-low", "label": "Logic LOW"},
+                    {"id": "opt-floating", "label": "Floating/undefined"},
+                ],
+                "context": "Typical digital input thresholds classify near-VCC as HIGH.",
+                "correct_answer": "opt-high",
+            }
+        ),
+        "hint_policy_json": json.dumps({"max_hints": 2, "hint_messages": ["Compare 3.0V with VCC.", "Near supply voltage is interpreted as HIGH."]}),
+        "explanation": "Digital inputs near 3.3V are interpreted as HIGH in common logic-threshold models.",
+    },
+    {
+        "id": "ex-digital-logic-fill-signal-chain",
+        "lab_id": "digital-logic-voltage-levels",
+        "exercise_type": "fill_blank",
+        "prompt": "Complete the sentence: A GPIO configured as ____ can drive an LED to a logic ____ level.",
+        "order_index": 2,
+        "max_score": 10,
+        "is_required": False,
+        "status": "published",
+        "content_version": 1,
+        "metadata_json": json.dumps(
+            {
+                "blanks": ["GPIO direction", "logic level"],
+                "units": [None, None],
+                "correct_answers": ["output", "high"],
+            }
+        ),
+        "hint_policy_json": json.dumps({"max_hints": 1, "hint_messages": ["Think about pin mode and resulting level."]}),
+        "explanation": "To drive an LED, the pin must be configured as output; setting it HIGH drives a high level.",
+    },
+    {
+        "id": "ex-gpio-led-fill-polarity",
+        "lab_id": "gpio-led-basics",
+        "exercise_type": "fill_blank",
+        "prompt": "Fill both blanks: LED ____ goes to GPIO through a resistor, and LED ____ goes to ground.",
+        "order_index": 1,
+        "max_score": 10,
+        "is_required": True,
+        "status": "published",
+        "content_version": 1,
+        "metadata_json": json.dumps(
+            {
+                "blanks": ["lead toward positive side", "lead toward ground"],
+                "correct_answers": ["anode", "cathode"],
+            }
+        ),
+        "hint_policy_json": json.dumps({"max_hints": 2, "hint_messages": ["Anode is typically longer lead.", "Cathode usually goes to lower potential."]}),
+        "explanation": "Correct LED polarity prevents no-light conditions and protects components.",
+    },
+    {
+        "id": "ex-gpio-led-short-current-limiting",
+        "lab_id": "gpio-led-basics",
+        "exercise_type": "short_text",
+        "prompt": "Why should a current-limiting resistor be placed in series with an LED driven by GPIO?",
+        "order_index": 2,
+        "max_score": 10,
+        "is_required": True,
+        "status": "published",
+        "content_version": 1,
+        "metadata_json": json.dumps(
+            {
+                "expected_topics": ["current limiting", "component protection"],
+                "accepted_answers": ["limit current", "protect led", "protect gpio"],
+                "min_matches": 1,
+            }
+        ),
+        "hint_policy_json": json.dumps({"max_hints": 1, "hint_messages": ["Think electrical safety for both LED and pin."]}),
+        "explanation": "A resistor constrains current to safe values and helps protect the LED and GPIO driver.",
+    },
+    {
+        "id": "ex-timer-mcq-period-source",
+        "lab_id": "timer-periodic-tasks",
+        "exercise_type": "multiple_choice",
+        "prompt": "Which peripheral is typically used to trigger a periodic task every fixed interval?",
+        "order_index": 1,
+        "max_score": 10,
+        "is_required": True,
+        "status": "published",
+        "content_version": 1,
+        "metadata_json": json.dumps(
+            {
+                "options": [
+                    {"id": "opt-timer", "label": "Hardware timer"},
+                    {"id": "opt-adc", "label": "ADC converter"},
+                    {"id": "opt-uart", "label": "UART receiver"},
+                ],
+                "correct_answer": "opt-timer",
+            }
+        ),
+        "hint_policy_json": json.dumps({"max_hints": 1, "hint_messages": ["Use the block designed for periodic interrupts."]}),
+        "explanation": "Hardware timers provide stable periodic events for deterministic scheduling.",
+    },
+    {
+        "id": "ex-timer-short-jitter-benefit",
+        "lab_id": "timer-periodic-tasks",
+        "exercise_type": "short_text",
+        "prompt": "Name one benefit of timer-driven scheduling compared with a blocking delay loop.",
+        "order_index": 2,
+        "max_score": 10,
+        "is_required": False,
+        "status": "published",
+        "content_version": 1,
+        "metadata_json": json.dumps(
+            {
+                "accepted_answers": ["predictable timing", "lower jitter", "non-blocking"],
+                "min_matches": 1,
+            }
+        ),
+        "hint_policy_json": json.dumps({"max_hints": 1, "hint_messages": ["Think determinism and CPU availability."]}),
+        "explanation": "Timer-driven tasks improve timing predictability and reduce blocking side effects.",
+    },
+)
+
+
 def list_labs(db: Session) -> list[Lab]:
     return list(db.scalars(select(Lab).order_by(Lab.order_index.asc(), Lab.title.asc())))
 
@@ -135,6 +264,29 @@ def seed_initial_labs(db: Session) -> None:
         for field_name, field_value in lab_payload.items():
             if getattr(lab, field_name) != field_value:
                 setattr(lab, field_name, field_value)
+                has_changes = True
+
+    if has_changes:
+        db.commit()
+
+    seed_initial_interactive_exercises(db=db)
+
+
+def seed_initial_interactive_exercises(db: Session) -> None:
+    existing_exercises = {exercise.id: exercise for exercise in db.scalars(select(Exercise)).all()}
+    has_changes = False
+
+    for exercise_payload in INITIAL_INTERACTIVE_EXERCISES:
+        exercise_id = str(exercise_payload["id"])
+        exercise = existing_exercises.get(exercise_id)
+        if exercise is None:
+            db.add(Exercise(**exercise_payload))
+            has_changes = True
+            continue
+
+        for field_name, field_value in exercise_payload.items():
+            if getattr(exercise, field_name) != field_value:
+                setattr(exercise, field_name, field_value)
                 has_changes = True
 
     if has_changes:

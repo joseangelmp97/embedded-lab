@@ -623,6 +623,95 @@ def test_submit_rejects_malformed_fill_blank_metadata(test_context):
     assert response.status_code == 422
 
 
+def test_submit_seeded_multiple_choice_works(test_context):
+    client = test_context["client"]
+    headers = _auth_headers(client)
+    lab_id = "digital-logic-voltage-levels"
+
+    attempt_id = client.post(f"/api/v1/labs/{lab_id}/attempts", headers=headers).json()["id"]
+    response = client.post(
+        f"/api/v1/labs/{lab_id}/attempts/{attempt_id}/submit",
+        headers=headers,
+        json={"exercise_id": "ex-digital-logic-mcq-thresholds", "response_payload_json": {"selected_option_id": "opt-high"}},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["is_correct"] is True
+
+
+def test_submit_seeded_fill_blank_works(test_context):
+    client = test_context["client"]
+    headers = _auth_headers(client)
+    lab_id = "digital-logic-voltage-levels"
+
+    attempt_id = client.post(f"/api/v1/labs/{lab_id}/attempts", headers=headers).json()["id"]
+    response = client.post(
+        f"/api/v1/labs/{lab_id}/attempts/{attempt_id}/submit",
+        headers=headers,
+        json={"exercise_id": "ex-digital-logic-fill-signal-chain", "response_payload_json": {"answers": ["output", "high"]}},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["is_correct"] is True
+
+
+def test_submit_seeded_short_text_works(test_context):
+    client = test_context["client"]
+    headers = _auth_headers(client)
+
+    complete_prerequisite = client.post("/api/v1/labs/digital-logic-voltage-levels/complete", headers=headers)
+    assert complete_prerequisite.status_code == 200
+
+    lab_id = "gpio-led-basics"
+    attempt_id = client.post(f"/api/v1/labs/{lab_id}/attempts", headers=headers).json()["id"]
+    response = client.post(
+        f"/api/v1/labs/{lab_id}/attempts/{attempt_id}/submit",
+        headers=headers,
+        json={
+            "exercise_id": "ex-gpio-led-short-current-limiting",
+            "response_payload_json": {"answer": "Use it to limit current and protect GPIO from overcurrent."},
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["is_correct"] is True
+
+
+def test_submit_seeded_required_exercises_auto_complete_lab(test_context):
+    client = test_context["client"]
+    headers = _auth_headers(client)
+
+    complete_prerequisite = client.post("/api/v1/labs/digital-logic-voltage-levels/complete", headers=headers)
+    assert complete_prerequisite.status_code == 200
+
+    lab_id = "gpio-led-basics"
+    attempt_id = client.post(f"/api/v1/labs/{lab_id}/attempts", headers=headers).json()["id"]
+
+    fill_submit = client.post(
+        f"/api/v1/labs/{lab_id}/attempts/{attempt_id}/submit",
+        headers=headers,
+        json={"exercise_id": "ex-gpio-led-fill-polarity", "response_payload_json": {"answers": ["anode", "cathode"]}},
+    )
+    short_submit = client.post(
+        f"/api/v1/labs/{lab_id}/attempts/{attempt_id}/submit",
+        headers=headers,
+        json={
+            "exercise_id": "ex-gpio-led-short-current-limiting",
+            "response_payload_json": {"answer": "A resistor helps limit current and protect LED operation."},
+        },
+    )
+
+    assert fill_submit.status_code == 200
+    assert short_submit.status_code == 200
+    assert short_submit.json()["session"]["required_exercises_total"] == 2
+    assert short_submit.json()["session"]["required_exercises_correct"] == 2
+
+    progress_list = client.get("/api/v1/me/lab-progress", headers=headers)
+    assert progress_list.status_code == 200
+    lab_progress = next(item for item in progress_list.json() if item["lab_id"] == lab_id)
+    assert lab_progress["status"] == "completed"
+
+
 def test_submit_auto_completes_lab_when_all_required_exercises_are_correct(test_context):
     client = test_context["client"]
     session_local = test_context["session_local"]
