@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from app.modules.attempts.models.exercise_attempt import ExerciseAttempt
 from app.modules.attempts.models.lab_attempt_session import LabAttemptSession
 from app.modules.evaluation.services import evaluate_exercise_submission
-from app.modules.lab_progress.services.lab_progress_service import start_lab_progress
+from app.modules.lab_progress.services.lab_progress_service import complete_lab_progress, start_lab_progress
 from app.modules.labs.models.exercise import Exercise
 from app.modules.labs.services.lab_service import get_lab_by_id, list_published_lab_exercises
 from app.modules.users.models.user import User
@@ -88,15 +88,41 @@ def _recompute_attempt_aggregates(db: Session, attempt: LabAttemptSession) -> No
     attempt.total_score_awarded = sum(int(row[1] or 0) for row in exercise_scores)
 
     required_best_scores = db.execute(
-        select(Exercise.id, func.max(ExerciseAttempt.score_awarded))
-        .join(ExerciseAttempt, ExerciseAttempt.exercise_id == Exercise.id)
-        .where(
-            ExerciseAttempt.lab_attempt_session_id == attempt.id,
-            Exercise.is_required.is_(True),
+        select(Exercise.id, Exercise.max_score, func.max(ExerciseAttempt.score_awarded))
+        .outerjoin(
+            ExerciseAttempt,
+            (ExerciseAttempt.exercise_id == Exercise.id) & (ExerciseAttempt.lab_attempt_session_id == attempt.id),
         )
-        .group_by(Exercise.id)
+        .where(
+            Exercise.lab_id == attempt.lab_id,
+            Exercise.is_required.is_(True),
+            Exercise.status == "published",
+        )
+        .group_by(Exercise.id, Exercise.max_score)
     ).all()
-    attempt.required_exercises_correct = sum(1 for _, best_score in required_best_scores if int(best_score or 0) > 0)
+    attempt.required_exercises_correct = sum(
+        1
+        for _, max_score, best_score in required_best_scores
+        if int(best_score or 0) == int(max_score)
+    )
+
+
+def _auto_complete_lab_progress_if_eligible(db: Session, user_id: str, attempt: LabAttemptSession) -> None:
+    if attempt.required_exercises_total == 0:
+        return
+
+    if attempt.required_exercises_correct != attempt.required_exercises_total:
+        return
+
+    if attempt.lab_attempt_status != "completed":
+        attempt.lab_attempt_status = "completed"
+        attempt.completed_at = datetime.now(timezone.utc)
+
+    user = db.get(User, user_id)
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+    complete_lab_progress(db=db, user=user, lab_id=attempt.lab_id)
 
 
 def submit_lab_exercise_attempt(
@@ -152,6 +178,7 @@ def submit_lab_exercise_attempt(
     db.flush()
 
     _recompute_attempt_aggregates(db=db, attempt=attempt)
+    _auto_complete_lab_progress_if_eligible(db=db, user_id=user_id, attempt=attempt)
     db.commit()
     db.refresh(exercise_attempt)
     db.refresh(attempt)

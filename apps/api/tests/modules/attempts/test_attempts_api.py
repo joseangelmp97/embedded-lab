@@ -206,6 +206,7 @@ def _create_exercise(
     exercise_type: str,
     metadata_json: str,
     max_score: int = 10,
+    is_required: bool = True,
 ):
     db = session_local()
     try:
@@ -217,6 +218,7 @@ def _create_exercise(
                 prompt="Pick the correct option",
                 order_index=1,
                 max_score=max_score,
+                is_required=is_required,
                 status="published",
                 metadata_json=metadata_json,
             )
@@ -226,13 +228,20 @@ def _create_exercise(
         db.close()
 
 
-def _create_mcq_exercise(session_local, lab_id: str, exercise_id: str = "exercise-mcq", exercise_type: str = "multiple_choice"):
+def _create_mcq_exercise(
+    session_local,
+    lab_id: str,
+    exercise_id: str = "exercise-mcq",
+    exercise_type: str = "multiple_choice",
+    is_required: bool = True,
+):
     _create_exercise(
         session_local=session_local,
         lab_id=lab_id,
         exercise_id=exercise_id,
         exercise_type=exercise_type,
         metadata_json='{"correct_option_id":"opt-a"}',
+        is_required=is_required,
     )
 
 
@@ -356,7 +365,7 @@ def test_repeated_submissions_use_best_score_per_exercise(test_context):
     session_local = test_context["session_local"]
     headers = _auth_headers(client)
     lab_id = str(INITIAL_LABS[0]["id"])
-    _create_mcq_exercise(session_local=session_local, lab_id=lab_id)
+    _create_mcq_exercise(session_local=session_local, lab_id=lab_id, is_required=False)
 
     attempt_response = client.post(f"/api/v1/labs/{lab_id}/attempts", headers=headers)
     attempt_id = attempt_response.json()["id"]
@@ -612,3 +621,183 @@ def test_submit_rejects_malformed_fill_blank_metadata(test_context):
     )
 
     assert response.status_code == 422
+
+
+def test_submit_auto_completes_lab_when_all_required_exercises_are_correct(test_context):
+    client = test_context["client"]
+    session_local = test_context["session_local"]
+    headers = _auth_headers(client)
+    lab_id = str(INITIAL_LABS[0]["id"])
+    _create_mcq_exercise(session_local=session_local, lab_id=lab_id, exercise_id="exercise-req-1")
+    _create_mcq_exercise(session_local=session_local, lab_id=lab_id, exercise_id="exercise-req-2")
+
+    attempt_id = client.post(f"/api/v1/labs/{lab_id}/attempts", headers=headers).json()["id"]
+    first_submit = client.post(
+        f"/api/v1/labs/{lab_id}/attempts/{attempt_id}/submit",
+        headers=headers,
+        json={"exercise_id": "exercise-req-1", "response_payload_json": {"selected_option_id": "opt-a"}},
+    )
+    second_submit = client.post(
+        f"/api/v1/labs/{lab_id}/attempts/{attempt_id}/submit",
+        headers=headers,
+        json={"exercise_id": "exercise-req-2", "response_payload_json": {"selected_option_id": "opt-a"}},
+    )
+
+    assert first_submit.status_code == 200
+    assert second_submit.status_code == 200
+    assert second_submit.json()["session"]["required_exercises_correct"] == 2
+    assert second_submit.json()["session"]["required_exercises_total"] == 2
+
+    progress_list = client.get("/api/v1/me/lab-progress", headers=headers)
+    assert progress_list.status_code == 200
+    lab_progress = next(item for item in progress_list.json() if item["lab_id"] == lab_id)
+    assert lab_progress["status"] == "completed"
+    assert lab_progress["completed_at"] is not None
+
+
+def test_submit_does_not_auto_complete_if_one_required_exercise_is_incorrect(test_context):
+    client = test_context["client"]
+    session_local = test_context["session_local"]
+    headers = _auth_headers(client)
+    lab_id = str(INITIAL_LABS[0]["id"])
+    _create_mcq_exercise(session_local=session_local, lab_id=lab_id, exercise_id="exercise-req-a")
+    _create_mcq_exercise(session_local=session_local, lab_id=lab_id, exercise_id="exercise-req-b")
+
+    attempt_id = client.post(f"/api/v1/labs/{lab_id}/attempts", headers=headers).json()["id"]
+    correct_submit = client.post(
+        f"/api/v1/labs/{lab_id}/attempts/{attempt_id}/submit",
+        headers=headers,
+        json={"exercise_id": "exercise-req-a", "response_payload_json": {"selected_option_id": "opt-a"}},
+    )
+    incorrect_submit = client.post(
+        f"/api/v1/labs/{lab_id}/attempts/{attempt_id}/submit",
+        headers=headers,
+        json={"exercise_id": "exercise-req-b", "response_payload_json": {"selected_option_id": "opt-b"}},
+    )
+
+    assert correct_submit.status_code == 200
+    assert incorrect_submit.status_code == 200
+    assert incorrect_submit.json()["session"]["required_exercises_correct"] == 1
+    assert incorrect_submit.json()["session"]["required_exercises_total"] == 2
+
+    progress_list = client.get("/api/v1/me/lab-progress", headers=headers)
+    assert progress_list.status_code == 200
+    lab_progress = next(item for item in progress_list.json() if item["lab_id"] == lab_id)
+    assert lab_progress["status"] == "in_progress"
+    assert lab_progress["completed_at"] is None
+
+
+def test_submit_partial_completion_stays_in_progress(test_context):
+    client = test_context["client"]
+    session_local = test_context["session_local"]
+    headers = _auth_headers(client)
+    lab_id = str(INITIAL_LABS[0]["id"])
+    _create_mcq_exercise(session_local=session_local, lab_id=lab_id, exercise_id="exercise-only-one-correct")
+    _create_mcq_exercise(session_local=session_local, lab_id=lab_id, exercise_id="exercise-not-answered")
+
+    attempt_id = client.post(f"/api/v1/labs/{lab_id}/attempts", headers=headers).json()["id"]
+    response = client.post(
+        f"/api/v1/labs/{lab_id}/attempts/{attempt_id}/submit",
+        headers=headers,
+        json={"exercise_id": "exercise-only-one-correct", "response_payload_json": {"selected_option_id": "opt-a"}},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["session"]["required_exercises_correct"] == 1
+    assert response.json()["session"]["required_exercises_total"] == 2
+
+    progress_list = client.get("/api/v1/me/lab-progress", headers=headers)
+    assert progress_list.status_code == 200
+    lab_progress = next(item for item in progress_list.json() if item["lab_id"] == lab_id)
+    assert lab_progress["status"] == "in_progress"
+
+
+def test_submit_idempotent_completion_does_not_overwrite_completed_at_timestamp(test_context):
+    client = test_context["client"]
+    session_local = test_context["session_local"]
+    headers = _auth_headers(client)
+    lab_id = str(INITIAL_LABS[0]["id"])
+    _create_mcq_exercise(session_local=session_local, lab_id=lab_id, exercise_id="exercise-idem-1")
+    _create_mcq_exercise(session_local=session_local, lab_id=lab_id, exercise_id="exercise-idem-2")
+
+    attempt_id = client.post(f"/api/v1/labs/{lab_id}/attempts", headers=headers).json()["id"]
+    client.post(
+        f"/api/v1/labs/{lab_id}/attempts/{attempt_id}/submit",
+        headers=headers,
+        json={"exercise_id": "exercise-idem-1", "response_payload_json": {"selected_option_id": "opt-a"}},
+    )
+    complete_submit = client.post(
+        f"/api/v1/labs/{lab_id}/attempts/{attempt_id}/submit",
+        headers=headers,
+        json={"exercise_id": "exercise-idem-2", "response_payload_json": {"selected_option_id": "opt-a"}},
+    )
+    assert complete_submit.status_code == 200
+
+    first_progress = client.get("/api/v1/me/lab-progress", headers=headers)
+    assert first_progress.status_code == 200
+    first_lab_progress = next(item for item in first_progress.json() if item["lab_id"] == lab_id)
+    first_status = first_lab_progress["status"]
+    first_completed_at = first_lab_progress["completed_at"]
+
+    repeated_complete = client.post(f"/api/v1/labs/{lab_id}/complete", headers=headers)
+    assert repeated_complete.status_code == 200
+
+    second_progress = client.get("/api/v1/me/lab-progress", headers=headers)
+    assert second_progress.status_code == 200
+    second_lab_progress = next(item for item in second_progress.json() if item["lab_id"] == lab_id)
+    second_status = second_lab_progress["status"]
+    second_completed_at = second_lab_progress["completed_at"]
+    assert first_status == "completed"
+    assert second_status == "completed"
+    assert first_completed_at is not None
+    assert second_completed_at == first_completed_at
+
+
+def test_reopen_then_new_attempt_can_auto_complete_again(test_context):
+    client = test_context["client"]
+    session_local = test_context["session_local"]
+    headers = _auth_headers(client)
+    lab_id = str(INITIAL_LABS[0]["id"])
+    _create_mcq_exercise(session_local=session_local, lab_id=lab_id, exercise_id="exercise-reopen-1")
+    _create_mcq_exercise(session_local=session_local, lab_id=lab_id, exercise_id="exercise-reopen-2")
+
+    first_attempt_id = client.post(f"/api/v1/labs/{lab_id}/attempts", headers=headers).json()["id"]
+    client.post(
+        f"/api/v1/labs/{lab_id}/attempts/{first_attempt_id}/submit",
+        headers=headers,
+        json={"exercise_id": "exercise-reopen-1", "response_payload_json": {"selected_option_id": "opt-a"}},
+    )
+    client.post(
+        f"/api/v1/labs/{lab_id}/attempts/{first_attempt_id}/submit",
+        headers=headers,
+        json={"exercise_id": "exercise-reopen-2", "response_payload_json": {"selected_option_id": "opt-a"}},
+    )
+
+    reopen_response = client.post(f"/api/v1/labs/{lab_id}/reopen", headers=headers)
+    assert reopen_response.status_code == 200
+    assert reopen_response.json()["status"] == "in_progress"
+
+    second_attempt = client.post(f"/api/v1/labs/{lab_id}/attempts", headers=headers)
+    assert second_attempt.status_code == 200
+    assert second_attempt.json()["attempt_number"] == 2
+    second_attempt_id = second_attempt.json()["id"]
+
+    second_submit = client.post(
+        f"/api/v1/labs/{lab_id}/attempts/{second_attempt_id}/submit",
+        headers=headers,
+        json={"exercise_id": "exercise-reopen-1", "response_payload_json": {"selected_option_id": "opt-a"}},
+    )
+    assert second_submit.status_code == 200
+    progress_after_partial = client.get("/api/v1/me/lab-progress", headers=headers).json()
+    lab_progress_partial = next(item for item in progress_after_partial if item["lab_id"] == lab_id)
+    assert lab_progress_partial["status"] == "in_progress"
+
+    final_submit = client.post(
+        f"/api/v1/labs/{lab_id}/attempts/{second_attempt_id}/submit",
+        headers=headers,
+        json={"exercise_id": "exercise-reopen-2", "response_payload_json": {"selected_option_id": "opt-a"}},
+    )
+    assert final_submit.status_code == 200
+    progress_after_complete = client.get("/api/v1/me/lab-progress", headers=headers).json()
+    lab_progress_complete = next(item for item in progress_after_complete if item["lab_id"] == lab_id)
+    assert lab_progress_complete["status"] == "completed"
