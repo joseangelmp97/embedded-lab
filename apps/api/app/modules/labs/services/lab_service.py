@@ -82,7 +82,7 @@ INITIAL_INTERACTIVE_EXERCISES: tuple[dict[str, object], ...] = (
             {
                 "blanks": ["GPIO direction", "logic level"],
                 "units": [None, None],
-                "correct_answers": ["output", "high"],
+                "correct_answers": [["output", "out", "pin output"], ["high", "1", "logic high"]],
             }
         ),
         "hint_policy_json": json.dumps({"max_hints": 1, "hint_messages": ["Think about pin mode and resulting level."]}),
@@ -101,7 +101,7 @@ INITIAL_INTERACTIVE_EXERCISES: tuple[dict[str, object], ...] = (
         "metadata_json": json.dumps(
             {
                 "blanks": ["lead toward positive side", "lead toward ground"],
-                "correct_answers": ["anode", "cathode"],
+                "correct_answers": [["anode", "positive lead"], ["cathode", "negative lead", "ground side"]],
             }
         ),
         "hint_policy_json": json.dumps({"max_hints": 2, "hint_messages": ["Anode is typically longer lead.", "Cathode usually goes to lower potential."]}),
@@ -120,8 +120,36 @@ INITIAL_INTERACTIVE_EXERCISES: tuple[dict[str, object], ...] = (
         "metadata_json": json.dumps(
             {
                 "expected_topics": ["current limiting", "component protection"],
-                "accepted_answers": ["limit current", "protect led", "protect gpio"],
-                "min_matches": 1,
+                "accepted_concepts": [
+                    {
+                        "id": "current_limiting",
+                        "accepted_terms": [
+                            "limit current",
+                            "current limit",
+                            "reduce current",
+                            "control current",
+                        ],
+                    },
+                    {
+                        "id": "led_protection",
+                        "accepted_terms": [
+                            "protect led",
+                            "avoid burning led",
+                            "prevent led damage",
+                            "keep led safe",
+                        ],
+                    },
+                    {
+                        "id": "gpio_pin_protection",
+                        "accepted_terms": [
+                            "protect gpio",
+                            "protect gpio pin",
+                            "protect pin",
+                            "avoid too much current in gpio",
+                        ],
+                    },
+                ],
+                "min_concepts": 1,
             }
         ),
         "hint_policy_json": json.dumps({"max_hints": 1, "hint_messages": ["Think electrical safety for both LED and pin."]}),
@@ -153,8 +181,8 @@ INITIAL_INTERACTIVE_EXERCISES: tuple[dict[str, object], ...] = (
     {
         "id": "ex-timer-short-jitter-benefit",
         "lab_id": "timer-periodic-tasks",
-        "exercise_type": "short_text",
-        "prompt": "Name one benefit of timer-driven scheduling compared with a blocking delay loop.",
+        "exercise_type": "fill_blank",
+        "prompt": "Complete the sentence: A hardware ____ can trigger tasks at fixed ____.",
         "order_index": 2,
         "max_score": 10,
         "is_required": False,
@@ -162,12 +190,12 @@ INITIAL_INTERACTIVE_EXERCISES: tuple[dict[str, object], ...] = (
         "content_version": 1,
         "metadata_json": json.dumps(
             {
-                "accepted_answers": ["predictable timing", "lower jitter", "non-blocking"],
-                "min_matches": 1,
+                "blanks": ["peripheral name", "timing property"],
+                "correct_answers": [["timer", "hw timer", "hardware timer"], ["interval", "period", "periodic interval"]],
             }
         ),
-        "hint_policy_json": json.dumps({"max_hints": 1, "hint_messages": ["Think determinism and CPU availability."]}),
-        "explanation": "Timer-driven tasks improve timing predictability and reduce blocking side effects.",
+        "hint_policy_json": json.dumps({"max_hints": 1, "hint_messages": ["Think about the block that generates periodic events."]}),
+        "explanation": "Hardware timers generate periodic events at fixed intervals.",
     },
 )
 
@@ -193,6 +221,7 @@ SENSITIVE_METADATA_KEYS = {
     "answer_key",
     "accepted_answer",
     "accepted_answers",
+    "accepted_concepts",
     "correct_answer",
     "correct_answers",
     "expected_answer",

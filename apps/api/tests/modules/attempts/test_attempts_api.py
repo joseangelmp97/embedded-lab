@@ -245,6 +245,27 @@ def _create_mcq_exercise(
     )
 
 
+def _complete_seeded_lab_via_evaluation(client: TestClient, headers: dict[str, str], lab_id: str) -> None:
+    attempt_id = client.post(f"/api/v1/labs/{lab_id}/attempts", headers=headers).json()["id"]
+
+    if lab_id == "digital-logic-voltage-levels":
+        first_submit = client.post(
+            f"/api/v1/labs/{lab_id}/attempts/{attempt_id}/submit",
+            headers=headers,
+            json={"exercise_id": "ex-digital-logic-mcq-thresholds", "response_payload_json": {"selected_option_id": "opt-high"}},
+        )
+        second_submit = client.post(
+            f"/api/v1/labs/{lab_id}/attempts/{attempt_id}/submit",
+            headers=headers,
+            json={"exercise_id": "ex-digital-logic-fill-signal-chain", "response_payload_json": {"answers": ["output", "high"]}},
+        )
+    else:
+        raise AssertionError(f"Unsupported seeded lab for evaluation helper: {lab_id}")
+
+    assert first_submit.status_code == 200
+    assert second_submit.status_code == 200
+
+
 def test_submit_correct_mcq_returns_full_score(test_context):
     client = test_context["client"]
     session_local = test_context["session_local"]
@@ -511,6 +532,55 @@ def test_submit_fill_blank_normalization_case_and_spacing(test_context):
     assert response.json()["is_correct"] is True
 
 
+def test_submit_fill_blank_accepts_variant_lists_and_punctuation_normalization(test_context):
+    client = test_context["client"]
+    session_local = test_context["session_local"]
+    headers = _auth_headers(client)
+    lab_id = str(INITIAL_LABS[0]["id"])
+    _create_exercise(
+        session_local=session_local,
+        lab_id=lab_id,
+        exercise_id="exercise-fill-variants",
+        exercise_type="fill_blank",
+        metadata_json='{"correct_answers":[["output","out","pin output"],["high","1","logic high"]]}',
+    )
+
+    attempt_id = client.post(f"/api/v1/labs/{lab_id}/attempts", headers=headers).json()["id"]
+    response = client.post(
+        f"/api/v1/labs/{lab_id}/attempts/{attempt_id}/submit",
+        headers=headers,
+        json={"exercise_id": "exercise-fill-variants", "response_payload_json": {"answers": ["Pin-output", "Logic, High!"]}},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["is_correct"] is True
+    assert body["score_awarded"] == 10
+
+
+def test_submit_rejects_malformed_fill_blank_variant_metadata(test_context):
+    client = test_context["client"]
+    session_local = test_context["session_local"]
+    headers = _auth_headers(client)
+    lab_id = str(INITIAL_LABS[0]["id"])
+    _create_exercise(
+        session_local=session_local,
+        lab_id=lab_id,
+        exercise_id="exercise-fill-variant-invalid",
+        exercise_type="fill_blank",
+        metadata_json='{"correct_answers":[["output"],[]]}',
+    )
+
+    attempt_id = client.post(f"/api/v1/labs/{lab_id}/attempts", headers=headers).json()["id"]
+    response = client.post(
+        f"/api/v1/labs/{lab_id}/attempts/{attempt_id}/submit",
+        headers=headers,
+        json={"exercise_id": "exercise-fill-variant-invalid", "response_payload_json": {"answers": ["output", "high"]}},
+    )
+
+    assert response.status_code == 422
+
+
 def test_submit_short_text_correct_keyword_match(test_context):
     client = test_context["client"]
     session_local = test_context["session_local"]
@@ -538,6 +608,113 @@ def test_submit_short_text_correct_keyword_match(test_context):
     body = response.json()
     assert body["is_correct"] is True
     assert body["score_awarded"] == 10
+
+
+def test_submit_short_text_conceptual_sentence_acceptance(test_context):
+    client = test_context["client"]
+    session_local = test_context["session_local"]
+    headers = _auth_headers(client)
+    lab_id = str(INITIAL_LABS[0]["id"])
+    _create_exercise(
+        session_local=session_local,
+        lab_id=lab_id,
+        exercise_id="exercise-short-concepts-1",
+        exercise_type="short_text",
+        metadata_json='{"accepted_concepts":[{"id":"current_limiting","accepted_terms":["limit current"]},{"id":"led_protection","accepted_terms":["protect led","avoid burning led"]},{"id":"gpio_pin_protection","accepted_terms":["protect gpio pin","protect gpio"]}],"min_concepts":1}',
+    )
+
+    attempt_id = client.post(f"/api/v1/labs/{lab_id}/attempts", headers=headers).json()["id"]
+    response = client.post(
+        f"/api/v1/labs/{lab_id}/attempts/{attempt_id}/submit",
+        headers=headers,
+        json={
+            "exercise_id": "exercise-short-concepts-1",
+            "response_payload_json": {"answer": "to limit current and protect the LED"},
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["is_correct"] is True
+
+
+def test_submit_short_text_concept_matching_case_and_punctuation(test_context):
+    client = test_context["client"]
+    session_local = test_context["session_local"]
+    headers = _auth_headers(client)
+    lab_id = str(INITIAL_LABS[0]["id"])
+    _create_exercise(
+        session_local=session_local,
+        lab_id=lab_id,
+        exercise_id="exercise-short-concepts-2",
+        exercise_type="short_text",
+        metadata_json='{"accepted_concepts":[{"id":"current_limiting","accepted_terms":["limit current"]}],"min_concepts":1}',
+    )
+
+    attempt_id = client.post(f"/api/v1/labs/{lab_id}/attempts", headers=headers).json()["id"]
+    response = client.post(
+        f"/api/v1/labs/{lab_id}/attempts/{attempt_id}/submit",
+        headers=headers,
+        json={
+            "exercise_id": "exercise-short-concepts-2",
+            "response_payload_json": {"answer": "It LIMITS, current!!!"},
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["is_correct"] is True
+
+
+def test_submit_short_text_multiple_concepts_in_long_sentence(test_context):
+    client = test_context["client"]
+    session_local = test_context["session_local"]
+    headers = _auth_headers(client)
+    lab_id = str(INITIAL_LABS[0]["id"])
+    _create_exercise(
+        session_local=session_local,
+        lab_id=lab_id,
+        exercise_id="exercise-short-concepts-3",
+        exercise_type="short_text",
+        metadata_json='{"accepted_concepts":[{"id":"current_limiting","accepted_terms":["limit current"]},{"id":"gpio_pin_protection","accepted_terms":["protect gpio pin","protect pin"]}],"min_concepts":2}',
+    )
+
+    attempt_id = client.post(f"/api/v1/labs/{lab_id}/attempts", headers=headers).json()["id"]
+    response = client.post(
+        f"/api/v1/labs/{lab_id}/attempts/{attempt_id}/submit",
+        headers=headers,
+        json={
+            "exercise_id": "exercise-short-concepts-3",
+            "response_payload_json": {
+                "answer": "Because it protects the GPIO pin from too much current and limits the current in the LED path."
+            },
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["is_correct"] is True
+
+
+def test_submit_short_text_unrelated_answer_rejected_for_concepts(test_context):
+    client = test_context["client"]
+    session_local = test_context["session_local"]
+    headers = _auth_headers(client)
+    lab_id = str(INITIAL_LABS[0]["id"])
+    _create_exercise(
+        session_local=session_local,
+        lab_id=lab_id,
+        exercise_id="exercise-short-concepts-4",
+        exercise_type="short_text",
+        metadata_json='{"accepted_concepts":[{"id":"current_limiting","accepted_terms":["limit current"]},{"id":"led_protection","accepted_terms":["protect led"]}],"min_concepts":1}',
+    )
+
+    attempt_id = client.post(f"/api/v1/labs/{lab_id}/attempts", headers=headers).json()["id"]
+    response = client.post(
+        f"/api/v1/labs/{lab_id}/attempts/{attempt_id}/submit",
+        headers=headers,
+        json={"exercise_id": "exercise-short-concepts-4", "response_payload_json": {"answer": "It makes code cleaner."}},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["is_correct"] is False
 
 
 def test_submit_short_text_incorrect_response(test_context):
@@ -659,8 +836,7 @@ def test_submit_seeded_short_text_works(test_context):
     client = test_context["client"]
     headers = _auth_headers(client)
 
-    complete_prerequisite = client.post("/api/v1/labs/digital-logic-voltage-levels/complete", headers=headers)
-    assert complete_prerequisite.status_code == 200
+    _complete_seeded_lab_via_evaluation(client=client, headers=headers, lab_id="digital-logic-voltage-levels")
 
     lab_id = "gpio-led-basics"
     attempt_id = client.post(f"/api/v1/labs/{lab_id}/attempts", headers=headers).json()["id"]
@@ -681,8 +857,7 @@ def test_submit_seeded_required_exercises_auto_complete_lab(test_context):
     client = test_context["client"]
     headers = _auth_headers(client)
 
-    complete_prerequisite = client.post("/api/v1/labs/digital-logic-voltage-levels/complete", headers=headers)
-    assert complete_prerequisite.status_code == 200
+    _complete_seeded_lab_via_evaluation(client=client, headers=headers, lab_id="digital-logic-voltage-levels")
 
     lab_id = "gpio-led-basics"
     attempt_id = client.post(f"/api/v1/labs/{lab_id}/attempts", headers=headers).json()["id"]

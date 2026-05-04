@@ -193,6 +193,7 @@ def test_lab_exercises_hides_seeded_private_evaluation_metadata(client: TestClie
     fill_blank_item = next(item for item in response.json() if item["id"] == "ex-gpio-led-fill-polarity")
 
     assert "accepted_answers" not in (short_text_item["metadata_json"] or {})
+    assert "accepted_concepts" not in (short_text_item["metadata_json"] or {})
     assert "correct_answers" not in (fill_blank_item["metadata_json"] or {})
 
 
