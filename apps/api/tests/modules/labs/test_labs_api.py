@@ -7,6 +7,7 @@ from sqlalchemy.orm import sessionmaker
 
 from app.main import app
 from app.modules.labs.models.exercise import Exercise
+from app.modules.labs.models.lab import Lab
 from app.modules.labs.services.lab_service import INITIAL_INTERACTIVE_EXERCISES, INITIAL_LABS, seed_initial_labs
 from app.shared.db.base import Base
 from app.shared.db.dependencies import get_db
@@ -95,10 +96,22 @@ def test_labs_list_requires_authentication(client: TestClient):
 
 def test_lab_exercises_returns_ordered_published_exercises(client: TestClient):
     token = _authenticate(client)
-    lab_id = str(INITIAL_LABS[2]["id"])
+    lab_id = f"lab-ordered-{uuid4().hex}"
 
     db_generator = app.dependency_overrides[get_db]()
     db = next(db_generator)
+    db.add(
+        Lab(
+            id=lab_id,
+            slug=lab_id,
+            title="Ordered test lab",
+            description="Temporary test lab",
+            difficulty="beginner",
+            estimated_minutes=10,
+            status="published",
+            order_index=1000,
+        )
+    )
     db.add_all(
         [
             Exercise(
@@ -162,8 +175,25 @@ def test_lab_exercises_requires_authentication(client: TestClient):
 def test_lab_exercises_returns_empty_list_when_no_published_exercises(client: TestClient):
     token = _authenticate(client)
 
+    db_generator = app.dependency_overrides[get_db]()
+    db = next(db_generator)
+    db.add(
+        Lab(
+            id="lab-no-exercises",
+            slug="lab-no-exercises",
+            title="Lab without exercises",
+            description="Temporary test lab",
+            difficulty="beginner",
+            estimated_minutes=10,
+            status="published",
+            order_index=999,
+        )
+    )
+    db.commit()
+    db_generator.close()
+
     response = client.get(
-        f"/api/v1/labs/{INITIAL_LABS[2]['id']}/exercises",
+        "/api/v1/labs/lab-no-exercises/exercises",
         headers={"Authorization": f"Bearer {token}"},
     )
 
@@ -171,7 +201,7 @@ def test_lab_exercises_returns_empty_list_when_no_published_exercises(client: Te
     assert response.json() == []
 
 
-def test_lab_exercises_returns_seeded_phase8_exercises(client: TestClient):
+def test_lab_exercises_returns_seeded_exercises(client: TestClient):
     token = _authenticate(client)
     lab_id = "digital-logic-voltage-levels"
 
@@ -230,3 +260,34 @@ def test_lab_exercises_hides_sensitive_fields(client: TestClient):
     assert "correct_answer" not in exercise["metadata_json"]
     assert "evaluation_rules" not in exercise["metadata_json"]
     assert "solution" not in exercise["hint_policy_json"]
+
+
+def test_lab_exercises_never_leaks_private_grading_metadata(client: TestClient):
+    token = _authenticate(client)
+    lab_id = str(INITIAL_LABS[0]["id"])
+
+    db_generator = app.dependency_overrides[get_db]()
+    db = next(db_generator)
+    db.add(
+        Exercise(
+            id="exercise-private-metadata",
+            lab_id=lab_id,
+            exercise_type="short_text",
+            prompt="Prompt",
+            order_index=4,
+            max_score=10,
+            status="published",
+            metadata_json='{"accepted_answers":["deterministic"],"private_grading_metadata":{"threshold":0.8}}',
+            hint_policy_json='{"grading_metadata":{"internal":true}}',
+            explanation="Visible explanation",
+        )
+    )
+    db.commit()
+    db_generator.close()
+
+    response = client.get(f"/api/v1/labs/{lab_id}/exercises", headers={"Authorization": f"Bearer {token}"})
+
+    assert response.status_code == 200
+    exercise = next(item for item in response.json() if item["id"] == "exercise-private-metadata")
+    assert exercise["metadata_json"] == {}
+    assert exercise["hint_policy_json"] == {}

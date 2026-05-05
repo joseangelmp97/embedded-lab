@@ -9,11 +9,10 @@ interface LabCardProps {
   isLocked: boolean;
   isSubmitting: boolean;
   onStart: () => void;
-  onComplete: () => void;
   onReopen: () => void;
 }
 
-export function LabCard({ lab, progressStatus, isLocked, isSubmitting, onStart, onComplete, onReopen }: LabCardProps) {
+export function LabCard({ lab, progressStatus, isLocked, isSubmitting, onStart, onReopen }: LabCardProps) {
   const effectiveStatus = getEffectiveLabProgressStatus(progressStatus, isLocked);
   const canStart = !isLocked && effectiveStatus === "not_started";
   const isCompleted = effectiveStatus === "completed";
@@ -58,9 +57,7 @@ export function LabCard({ lab, progressStatus, isLocked, isSubmitting, onStart, 
             {isSubmitting ? "Saving..." : "Reopen lab"}
           </button>
         ) : (
-          <button type="button" className="button secondary labs-inline-button" onClick={onComplete} disabled={isSubmitting}>
-            {isSubmitting ? "Saving..." : "Mark as completed"}
-          </button>
+          <p className="feedback">Complete the exercises to finish this lab.</p>
         )}
         <Link href={`/labs/${lab.id}`} className="button secondary labs-inline-button">
           View details

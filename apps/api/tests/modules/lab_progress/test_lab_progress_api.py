@@ -66,6 +66,41 @@ def _auth_headers(client: TestClient) -> dict[str, str]:
     return {"Authorization": f"Bearer {login_response.json()['access_token']}"}
 
 
+def _complete_lab_via_evaluation(client: TestClient, headers: dict[str, str], lab_id: str) -> None:
+    attempt_id = client.post(f"/api/v1/labs/{lab_id}/attempts", headers=headers).json()["id"]
+
+    if lab_id == "digital-logic-voltage-levels":
+        first_submit = client.post(
+            f"/api/v1/labs/{lab_id}/attempts/{attempt_id}/submit",
+            headers=headers,
+            json={"exercise_id": "ex-digital-logic-mcq-thresholds", "response_payload_json": {"selected_option_id": "opt-high"}},
+        )
+        second_submit = client.post(
+            f"/api/v1/labs/{lab_id}/attempts/{attempt_id}/submit",
+            headers=headers,
+            json={"exercise_id": "ex-digital-logic-fill-signal-chain", "response_payload_json": {"answers": ["output", "high"]}},
+        )
+    elif lab_id == "gpio-led-basics":
+        first_submit = client.post(
+            f"/api/v1/labs/{lab_id}/attempts/{attempt_id}/submit",
+            headers=headers,
+            json={"exercise_id": "ex-gpio-led-fill-polarity", "response_payload_json": {"answers": ["anode", "cathode"]}},
+        )
+        second_submit = client.post(
+            f"/api/v1/labs/{lab_id}/attempts/{attempt_id}/submit",
+            headers=headers,
+            json={
+                "exercise_id": "ex-gpio-led-short-current-limiting",
+                "response_payload_json": {"answer": "A resistor helps limit current and protect LED operation."},
+            },
+        )
+    else:
+        raise AssertionError(f"Unsupported seeded lab for evaluation helper: {lab_id}")
+
+    assert first_submit.status_code == 200
+    assert second_submit.status_code == 200
+
+
 def test_my_lab_progress_returns_empty_list_for_new_user(client: TestClient):
     headers = _auth_headers(client)
 
@@ -104,19 +139,18 @@ def test_start_relocked_lab_returns_403_even_with_existing_progress_record(clien
     prerequisite_lab_id = str(INITIAL_LABS[0]["id"])
     downstream_lab_id = str(INITIAL_LABS[1]["id"])
 
-    complete_prereq_response = client.post(f"/api/v1/labs/{prerequisite_lab_id}/complete", headers=headers)
+    _complete_lab_via_evaluation(client=client, headers=headers, lab_id=prerequisite_lab_id)
     start_downstream_response = client.post(f"/api/v1/labs/{downstream_lab_id}/start", headers=headers)
     reopen_prereq_response = client.post(f"/api/v1/labs/{prerequisite_lab_id}/reopen", headers=headers)
     relocked_start_response = client.post(f"/api/v1/labs/{downstream_lab_id}/start", headers=headers)
 
-    assert complete_prereq_response.status_code == 200
     assert start_downstream_response.status_code == 200
     assert reopen_prereq_response.status_code == 200
     assert relocked_start_response.status_code == 403
     assert "Lab is locked" in relocked_start_response.json()["detail"]
 
 
-def test_complete_prerequisite_unlocks_next_lab(client: TestClient):
+def test_manual_complete_interactive_lab_is_rejected_and_does_not_unlock_next_lab(client: TestClient):
     headers = _auth_headers(client)
     prerequisite_lab_id = str(INITIAL_LABS[1]["id"])
     next_lab_id = str(INITIAL_LABS[2]["id"])
@@ -126,32 +160,55 @@ def test_complete_prerequisite_unlocks_next_lab(client: TestClient):
     unlocked_response = client.post(f"/api/v1/labs/{next_lab_id}/start", headers=headers)
 
     assert locked_response.status_code == 403
-    assert complete_prerequisite_response.status_code == 200
+    assert complete_prerequisite_response.status_code == 409
+    assert "Manual completion is not allowed for interactive labs" in complete_prerequisite_response.json()["detail"]
+    assert unlocked_response.status_code == 403
+    assert "Lab is locked" in unlocked_response.json()["detail"]
+
+
+def test_evaluated_completion_unlocks_next_lab(client: TestClient):
+    headers = _auth_headers(client)
+    prerequisite_lab_id = str(INITIAL_LABS[0]["id"])
+    next_lab_id = str(INITIAL_LABS[1]["id"])
+
+    _complete_lab_via_evaluation(client=client, headers=headers, lab_id=prerequisite_lab_id)
+    unlocked_response = client.post(f"/api/v1/labs/{next_lab_id}/start", headers=headers)
+
     assert unlocked_response.status_code == 200
     assert unlocked_response.json()["status"] == "in_progress"
 
 
-def test_complete_lab_creates_progress_if_missing(client: TestClient):
+def test_reopen_resets_unlocking_source_without_oscillation(client: TestClient):
+    headers = _auth_headers(client)
+
+    _complete_lab_via_evaluation(client=client, headers=headers, lab_id="digital-logic-voltage-levels")
+    start_downstream_response = client.post("/api/v1/labs/gpio-led-basics/start", headers=headers)
+    reopen_prereq_response = client.post("/api/v1/labs/digital-logic-voltage-levels/reopen", headers=headers)
+    relocked_start_response = client.post("/api/v1/labs/gpio-led-basics/start", headers=headers)
+
+    assert start_downstream_response.status_code == 200
+    assert reopen_prereq_response.status_code == 200
+    assert relocked_start_response.status_code == 403
+    assert "Lab is locked" in relocked_start_response.json()["detail"]
+
+
+def test_manual_complete_does_not_create_progress_for_interactive_lab(client: TestClient):
     headers = _auth_headers(client)
     lab_id = str(INITIAL_LABS[1]["id"])
 
     response = client.post(f"/api/v1/labs/{lab_id}/complete", headers=headers)
 
-    assert response.status_code == 200
-    body = response.json()
-    assert body["status"] == "completed"
-    assert body["started_at"] is not None
-    assert body["completed_at"] is not None
+    assert response.status_code == 409
+    assert "Manual completion is not allowed for interactive labs" in response.json()["detail"]
 
 
-def test_reopen_completed_lab_sets_in_progress_and_clears_completed_at(client: TestClient):
+def test_reopen_after_evaluated_completion_sets_in_progress_and_clears_completed_at(client: TestClient):
     headers = _auth_headers(client)
-    lab_id = str(INITIAL_LABS[2]["id"])
+    lab_id = "digital-logic-voltage-levels"
 
-    complete_response = client.post(f"/api/v1/labs/{lab_id}/complete", headers=headers)
+    _complete_lab_via_evaluation(client=client, headers=headers, lab_id=lab_id)
     reopen_response = client.post(f"/api/v1/labs/{lab_id}/reopen", headers=headers)
 
-    assert complete_response.status_code == 200
     assert reopen_response.status_code == 200
     body = reopen_response.json()
     assert body["status"] == "in_progress"

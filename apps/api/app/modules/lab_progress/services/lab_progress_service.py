@@ -5,10 +5,15 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.modules.lab_progress.models.lab_progress import LabProgress
+from app.modules.labs.models.exercise import Exercise
 from app.modules.labs.services.lab_service import get_lab_by_id
 from app.modules.labs.models.lab import Lab
 from app.modules.paths.models.path import Path
 from app.modules.users.models.user import User
+
+
+COMPLETION_SOURCE_MANUAL = "manual"
+COMPLETION_SOURCE_EVALUATION = "evaluation"
 
 
 def _is_effectively_unlocked(
@@ -77,6 +82,7 @@ def list_user_path_progress_summaries(db: Session, user_id: str) -> list[dict[st
         labs_by_path_id[lab.path_id].append(lab)
         lab_ids.append(lab.id)
 
+    progress_rows: list[LabProgress] = []
     progress_by_lab_id: dict[str, str] = {}
     if lab_ids:
         progress_rows = list(
@@ -89,10 +95,10 @@ def list_user_path_progress_summaries(db: Session, user_id: str) -> list[dict[st
         )
         progress_by_lab_id = {progress.lab_id: progress.status for progress in progress_rows}
 
-    completed_lab_ids = {
-        lab_id
-        for lab_id, progress_status in progress_by_lab_id.items()
-        if progress_status == "completed"
+    progression_completed_lab_ids = {
+        progress.lab_id
+        for progress in progress_rows
+        if progress.status == "completed" and progress.completion_source == COMPLETION_SOURCE_EVALUATION
     }
 
     summaries: list[dict[str, object]] = []
@@ -106,7 +112,7 @@ def list_user_path_progress_summaries(db: Session, user_id: str) -> list[dict[st
             if _is_effectively_unlocked(
                 lab=lab,
                 labs_by_id=labs_by_id,
-                completed_lab_ids=completed_lab_ids,
+                completed_lab_ids=progression_completed_lab_ids,
                 unlock_cache=unlock_cache,
             )
         }
@@ -149,6 +155,7 @@ def start_lab_progress(db: Session, user: User, lab_id: str) -> LabProgress:
                 LabProgress.user_id == user.id,
                 LabProgress.lab_id == lab.prerequisite_lab_id,
                 LabProgress.status == "completed",
+                LabProgress.completion_source == COMPLETION_SOURCE_EVALUATION,
             ),
         )
         if prerequisite_progress is None:
@@ -184,7 +191,31 @@ def start_lab_progress(db: Session, user: User, lab_id: str) -> LabProgress:
 
 
 def complete_lab_progress(db: Session, user: User, lab_id: str) -> LabProgress:
+    return _complete_lab_progress(db=db, user=user, lab_id=lab_id, completion_source=COMPLETION_SOURCE_MANUAL)
+
+
+def complete_lab_progress_from_evaluation(db: Session, user: User, lab_id: str) -> LabProgress:
+    return _complete_lab_progress(db=db, user=user, lab_id=lab_id, completion_source=COMPLETION_SOURCE_EVALUATION)
+
+
+def _complete_lab_progress(db: Session, user: User, lab_id: str, completion_source: str) -> LabProgress:
     get_lab_by_id(db=db, lab_id=lab_id)
+
+    if completion_source == COMPLETION_SOURCE_MANUAL:
+        has_interactive_exercises = db.scalar(
+            select(Exercise.id).where(
+                Exercise.lab_id == lab_id,
+                Exercise.status == "published",
+            ).limit(1),
+        )
+        if has_interactive_exercises is not None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=(
+                    "Manual completion is not allowed for interactive labs. "
+                    "Complete required exercises through evaluation to unlock progression."
+                ),
+            )
 
     now = datetime.now(tz=timezone.utc)
     progress = db.scalar(
@@ -199,14 +230,18 @@ def complete_lab_progress(db: Session, user: User, lab_id: str) -> LabProgress:
             user_id=user.id,
             lab_id=lab_id,
             status="completed",
+            completion_source=completion_source,
             started_at=now,
             completed_at=now,
         )
         db.add(progress)
     elif progress.status != "completed":
         progress.status = "completed"
+        progress.completion_source = completion_source
         progress.started_at = progress.started_at or now
         progress.completed_at = now
+    elif progress.completion_source != completion_source and completion_source == COMPLETION_SOURCE_EVALUATION:
+        progress.completion_source = completion_source
 
     db.commit()
     db.refresh(progress)
@@ -229,12 +264,14 @@ def reopen_lab_progress(db: Session, user: User, lab_id: str) -> LabProgress:
             user_id=user.id,
             lab_id=lab_id,
             status="in_progress",
+            completion_source=None,
             started_at=now,
             completed_at=None,
         )
         db.add(progress)
     elif progress.status == "completed":
         progress.status = "in_progress"
+        progress.completion_source = None
         progress.started_at = progress.started_at or now
         progress.completed_at = None
 

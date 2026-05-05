@@ -8,7 +8,10 @@ from sqlalchemy.orm import Session
 from app.modules.attempts.models.exercise_attempt import ExerciseAttempt
 from app.modules.attempts.models.lab_attempt_session import LabAttemptSession
 from app.modules.evaluation.services import evaluate_exercise_submission
-from app.modules.lab_progress.services.lab_progress_service import complete_lab_progress, start_lab_progress
+from app.modules.lab_progress.services.lab_progress_service import (
+    complete_lab_progress_from_evaluation,
+    start_lab_progress,
+)
 from app.modules.labs.models.exercise import Exercise
 from app.modules.labs.services.lab_service import get_lab_by_id, list_published_lab_exercises
 from app.modules.users.models.user import User
@@ -100,6 +103,7 @@ def _recompute_attempt_aggregates(db: Session, attempt: LabAttemptSession) -> No
         )
         .group_by(Exercise.id, Exercise.max_score)
     ).all()
+    attempt.required_exercises_total = len(required_best_scores)
     attempt.required_exercises_correct = sum(
         1
         for _, max_score, best_score in required_best_scores
@@ -108,10 +112,12 @@ def _recompute_attempt_aggregates(db: Session, attempt: LabAttemptSession) -> No
 
 
 def _auto_complete_lab_progress_if_eligible(db: Session, user_id: str, attempt: LabAttemptSession) -> None:
-    if attempt.required_exercises_total == 0:
-        return
+    is_eligible = (
+        attempt.required_exercises_total > 0
+        and attempt.required_exercises_correct == attempt.required_exercises_total
+    )
 
-    if attempt.required_exercises_correct != attempt.required_exercises_total:
+    if not is_eligible:
         return
 
     if attempt.lab_attempt_status != "completed":
@@ -122,7 +128,7 @@ def _auto_complete_lab_progress_if_eligible(db: Session, user_id: str, attempt: 
     if user is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
-    complete_lab_progress(db=db, user=user, lab_id=attempt.lab_id)
+    complete_lab_progress_from_evaluation(db=db, user=user, lab_id=attempt.lab_id)
 
 
 def submit_lab_exercise_attempt(

@@ -536,6 +536,140 @@ body {
   display: none;
 }
 
+.interactive-lab-card {
+  border-top: 1px solid #e2e8f0;
+  padding-top: 1rem;
+  display: grid;
+  gap: 1rem;
+}
+
+.interactive-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.interactive-header-row h3,
+.interactive-roadmap-panel h4 {
+  margin: 0;
+}
+
+.interactive-layout {
+  display: grid;
+  gap: 1rem;
+}
+
+.interactive-active-panel,
+.interactive-roadmap-panel {
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #ffffff;
+  padding: 0.85rem;
+  display: grid;
+  gap: 0.75rem;
+}
+
+.interactive-active-title {
+  margin: 0;
+  font-weight: 700;
+}
+
+.exercise-form,
+.exercise-fieldset {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.exercise-fieldset {
+  margin: 0;
+  border: none;
+  padding: 0;
+}
+
+.exercise-prompt {
+  margin: 0;
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+.exercise-options-list,
+.exercise-input-grid {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.exercise-option {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.exercise-textarea {
+  resize: vertical;
+  min-height: 100px;
+}
+
+.exercise-result {
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 0.7rem;
+  background: #f8fafc;
+}
+
+.exercise-result p {
+  margin: 0 0 0.55rem;
+}
+
+.exercise-result.is-correct {
+  border-color: #86efac;
+  background: #f0fdf4;
+}
+
+.exercise-result.is-incorrect {
+  border-color: #fecaca;
+  background: #fef2f2;
+}
+
+.exercise-roadmap-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.exercise-roadmap-item {
+  width: 100%;
+  text-align: left;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 0.55rem;
+  display: grid;
+  gap: 0.2rem;
+  color: #334155;
+  font-size: 0.84rem;
+}
+
+.exercise-roadmap-item.is-current {
+  border-color: #818cf8;
+  background: #eef2ff;
+}
+
+.exercise-roadmap-item.is-correct {
+  border-color: #86efac;
+}
+
+.exercise-roadmap-item.is-incorrect {
+  border-color: #fca5a5;
+}
+
+.exercise-roadmap-item.is-locked {
+  opacity: 0.75;
+}
+
 @media (min-width: 720px) {
   .public-auth-page {
     grid-template-columns: minmax(0, 1fr) minmax(0, 560px);
@@ -579,5 +713,10 @@ body {
 
   .labs-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .interactive-layout {
+    grid-template-columns: minmax(0, 1.3fr) minmax(0, 0.9fr);
+    align-items: start;
   }
 }

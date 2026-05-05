@@ -7,7 +7,9 @@ from sqlalchemy.orm import sessionmaker
 
 from app.main import app
 from app.modules.attempts.models.lab_attempt_session import LabAttemptSession
+from app.modules.lab_progress.models.lab_progress import LabProgress
 from app.modules.labs.models.exercise import Exercise
+from app.modules.labs.models.lab import Lab
 from app.modules.labs.services.lab_service import INITIAL_LABS, seed_initial_labs
 from app.modules.paths.services.path_service import assign_labs_to_paths, seed_initial_paths
 from app.shared.db.base import Base
@@ -181,7 +183,7 @@ def test_locked_lab_cannot_create_attempt(test_context):
     assert "Lab is locked" in response.json()["detail"]
 
 
-def test_lab_progress_endpoints_behavior_remains_unchanged(test_context):
+def test_lab_progress_endpoints_keep_reopen_and_reject_manual_complete_for_interactive_labs(test_context):
     client = test_context["client"]
     headers = _auth_headers(client)
     lab_id = str(INITIAL_LABS[0]["id"])
@@ -193,8 +195,8 @@ def test_lab_progress_endpoints_behavior_remains_unchanged(test_context):
 
     assert create_attempt_response.status_code == 200
     assert start_response.status_code == 200
-    assert complete_response.status_code == 200
-    assert complete_response.json()["status"] == "completed"
+    assert complete_response.status_code == 409
+    assert "Manual completion is not allowed for interactive labs" in complete_response.json()["detail"]
     assert reopen_response.status_code == 200
     assert reopen_response.json()["status"] == "in_progress"
 
@@ -221,6 +223,26 @@ def _create_exercise(
                 is_required=is_required,
                 status="published",
                 metadata_json=metadata_json,
+            )
+        )
+        db.commit()
+    finally:
+        db.close()
+
+
+def _create_isolated_lab(session_local, *, lab_id: str) -> None:
+    db = session_local()
+    try:
+        db.add(
+            Lab(
+                id=lab_id,
+                slug=lab_id,
+                title="Isolated test lab",
+                description="Lab for isolated attempt assertions",
+                difficulty="beginner",
+                estimated_minutes=10,
+                status="published",
+                order_index=5000,
             )
         )
         db.commit()
@@ -887,11 +909,64 @@ def test_submit_seeded_required_exercises_auto_complete_lab(test_context):
     assert lab_progress["status"] == "completed"
 
 
+def test_submit_seeded_single_required_exercise_completes_and_unlocks_next_lab(test_context):
+    client = test_context["client"]
+    session_local = test_context["session_local"]
+    headers = _auth_headers(client)
+
+    _complete_seeded_lab_via_evaluation(client=client, headers=headers, lab_id="digital-logic-voltage-levels")
+
+    gpio_lab_id = "gpio-led-basics"
+    gpio_attempt_id = client.post(f"/api/v1/labs/{gpio_lab_id}/attempts", headers=headers).json()["id"]
+    client.post(
+        f"/api/v1/labs/{gpio_lab_id}/attempts/{gpio_attempt_id}/submit",
+        headers=headers,
+        json={"exercise_id": "ex-gpio-led-fill-polarity", "response_payload_json": {"answers": ["anode", "cathode"]}},
+    )
+    client.post(
+        f"/api/v1/labs/{gpio_lab_id}/attempts/{gpio_attempt_id}/submit",
+        headers=headers,
+        json={
+            "exercise_id": "ex-gpio-led-short-current-limiting",
+            "response_payload_json": {"answer": "A resistor helps limit current and protect LED operation."},
+        },
+    )
+
+    button_lab_id = "button-debounce-fundamentals"
+    button_attempt_response = client.post(f"/api/v1/labs/{button_lab_id}/attempts", headers=headers)
+    assert button_attempt_response.status_code == 200
+    button_attempt_id = button_attempt_response.json()["id"]
+
+    button_submit = client.post(
+        f"/api/v1/labs/{button_lab_id}/attempts/{button_attempt_id}/submit",
+        headers=headers,
+        json={"exercise_id": "ex-button-debounce-fundamentals-mcq-core", "response_payload_json": {"selected_option_id": "opt-a"}},
+    )
+
+    assert button_submit.status_code == 200
+    assert button_submit.json()["is_correct"] is True
+    assert button_submit.json()["session"]["required_exercises_total"] == 1
+    assert button_submit.json()["session"]["required_exercises_correct"] == 1
+
+    db = session_local()
+    try:
+        progress = db.scalar(select(LabProgress).where(LabProgress.lab_id == button_lab_id))
+        assert progress is not None
+        assert progress.status == "completed"
+        assert progress.completion_source == "evaluation"
+    finally:
+        db.close()
+
+    next_lab_attempt_response = client.post("/api/v1/labs/resistor-led-current-limiting/attempts", headers=headers)
+    assert next_lab_attempt_response.status_code == 200
+
+
 def test_submit_auto_completes_lab_when_all_required_exercises_are_correct(test_context):
     client = test_context["client"]
     session_local = test_context["session_local"]
     headers = _auth_headers(client)
-    lab_id = str(INITIAL_LABS[0]["id"])
+    lab_id = f"isolated-auto-complete-{uuid4().hex}"
+    _create_isolated_lab(session_local=session_local, lab_id=lab_id)
     _create_mcq_exercise(session_local=session_local, lab_id=lab_id, exercise_id="exercise-req-1")
     _create_mcq_exercise(session_local=session_local, lab_id=lab_id, exercise_id="exercise-req-2")
 
@@ -923,7 +998,8 @@ def test_submit_does_not_auto_complete_if_one_required_exercise_is_incorrect(tes
     client = test_context["client"]
     session_local = test_context["session_local"]
     headers = _auth_headers(client)
-    lab_id = str(INITIAL_LABS[0]["id"])
+    lab_id = f"isolated-not-complete-{uuid4().hex}"
+    _create_isolated_lab(session_local=session_local, lab_id=lab_id)
     _create_mcq_exercise(session_local=session_local, lab_id=lab_id, exercise_id="exercise-req-a")
     _create_mcq_exercise(session_local=session_local, lab_id=lab_id, exercise_id="exercise-req-b")
 
@@ -951,11 +1027,55 @@ def test_submit_does_not_auto_complete_if_one_required_exercise_is_incorrect(tes
     assert lab_progress["completed_at"] is None
 
 
+def test_submit_seeded_single_required_exercise_incorrect_does_not_complete(test_context):
+    client = test_context["client"]
+    headers = _auth_headers(client)
+
+    _complete_seeded_lab_via_evaluation(client=client, headers=headers, lab_id="digital-logic-voltage-levels")
+
+    gpio_lab_id = "gpio-led-basics"
+    gpio_attempt_id = client.post(f"/api/v1/labs/{gpio_lab_id}/attempts", headers=headers).json()["id"]
+    client.post(
+        f"/api/v1/labs/{gpio_lab_id}/attempts/{gpio_attempt_id}/submit",
+        headers=headers,
+        json={"exercise_id": "ex-gpio-led-fill-polarity", "response_payload_json": {"answers": ["anode", "cathode"]}},
+    )
+    client.post(
+        f"/api/v1/labs/{gpio_lab_id}/attempts/{gpio_attempt_id}/submit",
+        headers=headers,
+        json={
+            "exercise_id": "ex-gpio-led-short-current-limiting",
+            "response_payload_json": {"answer": "A resistor helps limit current and protect LED operation."},
+        },
+    )
+
+    button_lab_id = "button-debounce-fundamentals"
+    button_attempt_id = client.post(f"/api/v1/labs/{button_lab_id}/attempts", headers=headers).json()["id"]
+    button_submit = client.post(
+        f"/api/v1/labs/{button_lab_id}/attempts/{button_attempt_id}/submit",
+        headers=headers,
+        json={"exercise_id": "ex-button-debounce-fundamentals-mcq-core", "response_payload_json": {"selected_option_id": "opt-b"}},
+    )
+
+    assert button_submit.status_code == 200
+    assert button_submit.json()["is_correct"] is False
+    assert button_submit.json()["session"]["required_exercises_total"] == 1
+    assert button_submit.json()["session"]["required_exercises_correct"] == 0
+
+    progress_list = client.get("/api/v1/me/lab-progress", headers=headers)
+    button_progress = next(item for item in progress_list.json() if item["lab_id"] == button_lab_id)
+    assert button_progress["status"] == "in_progress"
+
+    next_lab_attempt_response = client.post("/api/v1/labs/resistor-led-current-limiting/attempts", headers=headers)
+    assert next_lab_attempt_response.status_code == 403
+
+
 def test_submit_partial_completion_stays_in_progress(test_context):
     client = test_context["client"]
     session_local = test_context["session_local"]
     headers = _auth_headers(client)
-    lab_id = str(INITIAL_LABS[0]["id"])
+    lab_id = f"isolated-partial-{uuid4().hex}"
+    _create_isolated_lab(session_local=session_local, lab_id=lab_id)
     _create_mcq_exercise(session_local=session_local, lab_id=lab_id, exercise_id="exercise-only-one-correct")
     _create_mcq_exercise(session_local=session_local, lab_id=lab_id, exercise_id="exercise-not-answered")
 
@@ -976,11 +1096,35 @@ def test_submit_partial_completion_stays_in_progress(test_context):
     assert lab_progress["status"] == "in_progress"
 
 
+def test_submit_does_not_auto_complete_when_lab_has_no_required_exercises(test_context):
+    client = test_context["client"]
+    session_local = test_context["session_local"]
+    headers = _auth_headers(client)
+    lab_id = f"isolated-optional-only-{uuid4().hex}"
+    _create_isolated_lab(session_local=session_local, lab_id=lab_id)
+    _create_mcq_exercise(session_local=session_local, lab_id=lab_id, exercise_id="exercise-optional-only", is_required=False)
+
+    attempt_id = client.post(f"/api/v1/labs/{lab_id}/attempts", headers=headers).json()["id"]
+    response = client.post(
+        f"/api/v1/labs/{lab_id}/attempts/{attempt_id}/submit",
+        headers=headers,
+        json={"exercise_id": "exercise-optional-only", "response_payload_json": {"selected_option_id": "opt-a"}},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["session"]["required_exercises_total"] == 0
+
+    progress_list = client.get("/api/v1/me/lab-progress", headers=headers)
+    lab_progress = next(item for item in progress_list.json() if item["lab_id"] == lab_id)
+    assert lab_progress["status"] == "in_progress"
+
+
 def test_submit_idempotent_completion_does_not_overwrite_completed_at_timestamp(test_context):
     client = test_context["client"]
     session_local = test_context["session_local"]
     headers = _auth_headers(client)
-    lab_id = str(INITIAL_LABS[0]["id"])
+    lab_id = f"isolated-idempotent-{uuid4().hex}"
+    _create_isolated_lab(session_local=session_local, lab_id=lab_id)
     _create_mcq_exercise(session_local=session_local, lab_id=lab_id, exercise_id="exercise-idem-1")
     _create_mcq_exercise(session_local=session_local, lab_id=lab_id, exercise_id="exercise-idem-2")
 
@@ -1004,7 +1148,7 @@ def test_submit_idempotent_completion_does_not_overwrite_completed_at_timestamp(
     first_completed_at = first_lab_progress["completed_at"]
 
     repeated_complete = client.post(f"/api/v1/labs/{lab_id}/complete", headers=headers)
-    assert repeated_complete.status_code == 200
+    assert repeated_complete.status_code == 409
 
     second_progress = client.get("/api/v1/me/lab-progress", headers=headers)
     assert second_progress.status_code == 200
@@ -1021,7 +1165,8 @@ def test_reopen_then_new_attempt_can_auto_complete_again(test_context):
     client = test_context["client"]
     session_local = test_context["session_local"]
     headers = _auth_headers(client)
-    lab_id = str(INITIAL_LABS[0]["id"])
+    lab_id = f"isolated-reopen-{uuid4().hex}"
+    _create_isolated_lab(session_local=session_local, lab_id=lab_id)
     _create_mcq_exercise(session_local=session_local, lab_id=lab_id, exercise_id="exercise-reopen-1")
     _create_mcq_exercise(session_local=session_local, lab_id=lab_id, exercise_id="exercise-reopen-2")
 

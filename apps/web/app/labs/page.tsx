@@ -24,19 +24,8 @@ export default function LabsPage() {
     pendingActions,
     getLabStatus,
     startLabProgress,
-    completeLabProgress,
     reopenLabProgress
   } = useLabProgress(Boolean(user));
-
-  const handleCompleteLab = (labId: string) => {
-    const shouldComplete = window.confirm("Mark this lab as completed?");
-
-    if (!shouldComplete) {
-      return;
-    }
-
-    void completeLabProgress(labId);
-  };
 
   const displayName = user?.display_name?.trim() || "Learner";
   const pathProgressById = pathProgress.reduce<Record<string, (typeof pathProgress)[number]>>((accumulator, summary) => {
@@ -152,7 +141,6 @@ export default function LabsPage() {
                                   isLocked={locked}
                                   isSubmitting={Boolean(pendingActions[lab.id])}
                                   onStart={() => void startLabProgress(lab.id)}
-                                  onComplete={() => handleCompleteLab(lab.id)}
                                   onReopen={() => void reopenLabProgress(lab.id)}
                                 />
                               );

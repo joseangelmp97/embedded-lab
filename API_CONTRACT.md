@@ -895,7 +895,7 @@ Response `200`:
 Rules:
 
 - `locked_labs` is derived from prerequisites for the same user.
-- A lab is considered locked when `prerequisite_lab_id` is set and that prerequisite lab is not currently `completed` by the user.
+- A lab is considered locked when `prerequisite_lab_id` is set and that prerequisite lab does not have a valid evaluation completion for the user (`status=completed` from interactive evaluation flow).
 - `completion_percentage` is an integer in range `0-100` computed as `floor(completed_labs * 100 / total_labs)` and `0` when `total_labs` is `0`.
 
 ### `POST /api/v1/labs/{lab_id}/start`
@@ -911,8 +911,9 @@ Starts lab progress for the authenticated user.
 
 Marks lab progress as completed.
 
-- Creates progress if missing.
-- Sets `status=completed`, `completed_at=now`, and ensures `started_at` is populated.
+- Manual completion is rejected for interactive labs (labs with published exercises) with `409`.
+- Interactive labs must be completed through evaluation flow (`POST /api/v1/labs/{lab_id}/attempts/{attempt_id}/submit` until required exercises are correct).
+- For any non-interactive lab (no published exercises), manual completion may still set `status=completed`, `completed_at=now`, and ensure `started_at` is populated.
 - `404` when the lab does not exist.
 
 ### `POST /api/v1/labs/{lab_id}/reopen`

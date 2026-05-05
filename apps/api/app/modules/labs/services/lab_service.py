@@ -43,7 +43,7 @@ INITIAL_LABS: tuple[dict[str, object], ...] = (
 )
 
 
-INITIAL_INTERACTIVE_EXERCISES: tuple[dict[str, object], ...] = (
+_EXPLICIT_INTERACTIVE_EXERCISES: tuple[dict[str, object], ...] = (
     {
         "id": "ex-digital-logic-mcq-thresholds",
         "lab_id": "digital-logic-voltage-levels",
@@ -51,7 +51,7 @@ INITIAL_INTERACTIVE_EXERCISES: tuple[dict[str, object], ...] = (
         "prompt": "A 3.3V microcontroller pin reads 3.0V. Which logic state is the safest interpretation?",
         "order_index": 1,
         "max_score": 10,
-        "is_required": False,
+        "is_required": True,
         "status": "published",
         "content_version": 1,
         "metadata_json": json.dumps(
@@ -75,7 +75,7 @@ INITIAL_INTERACTIVE_EXERCISES: tuple[dict[str, object], ...] = (
         "prompt": "Complete the sentence: A GPIO configured as ____ can drive an LED to a logic ____ level.",
         "order_index": 2,
         "max_score": 10,
-        "is_required": False,
+        "is_required": True,
         "status": "published",
         "content_version": 1,
         "metadata_json": json.dumps(
@@ -200,6 +200,110 @@ INITIAL_INTERACTIVE_EXERCISES: tuple[dict[str, object], ...] = (
 )
 
 
+def _build_generated_exercises_for_lab(lab_payload: dict[str, object]) -> list[dict[str, object]]:
+    lab_id = str(lab_payload["id"])
+    difficulty = str(lab_payload["difficulty"])
+    title = str(lab_payload["title"])
+    slug = str(lab_payload["slug"])
+
+    base_exercises: list[dict[str, object]] = [
+        {
+            "id": f"ex-{slug}-mcq-core",
+            "lab_id": lab_id,
+            "exercise_type": "multiple_choice",
+            "prompt": f"Which statement best matches the core goal of '{title}'?",
+            "order_index": 1,
+            "max_score": 10,
+            "is_required": True,
+            "status": "published",
+            "content_version": 1,
+            "metadata_json": json.dumps(
+                {
+                    "options": [
+                        {"id": "opt-a", "label": f"Use deterministic checks for {title.lower()}"},
+                        {"id": "opt-b", "label": "Ignore measurement and rely on assumptions"},
+                        {"id": "opt-c", "label": "Skip validation and move straight to deployment"},
+                    ],
+                    "correct_answer": "opt-a",
+                }
+            ),
+            "hint_policy_json": json.dumps({"max_hints": 1, "hint_messages": ["Choose the safety-first engineering option."]}),
+            "explanation": "Embedded workflows should prefer observable, deterministic validation.",
+        }
+    ]
+
+    if difficulty in {"intermediate", "advanced"}:
+        base_exercises.append(
+            {
+                "id": f"ex-{slug}-fill-key-terms",
+                "lab_id": lab_id,
+                "exercise_type": "fill_blank",
+                "prompt": "Complete the phrase: Verify ____ before marking the lab ____.",
+                "order_index": 2,
+                "max_score": 10,
+                "is_required": True,
+                "status": "published",
+                "content_version": 1,
+                "metadata_json": json.dumps(
+                    {
+                        "blanks": ["validation target", "final state"],
+                        "correct_answers": [
+                            ["results", "measurements", "outcome"],
+                            ["complete", "completed", "done"],
+                        ],
+                    }
+                ),
+                "hint_policy_json": json.dumps({"max_hints": 1, "hint_messages": ["Think about evidence and completion state."]}),
+                "explanation": "Progression should be tied to verified outcomes.",
+            }
+        )
+
+    if difficulty == "advanced":
+        base_exercises.append(
+            {
+                "id": f"ex-{slug}-short-rationale",
+                "lab_id": lab_id,
+                "exercise_type": "short_text",
+                "prompt": "Why is deterministic validation required before unlocking downstream work?",
+                "order_index": 3,
+                "max_score": 10,
+                "is_required": True,
+                "status": "published",
+                "content_version": 1,
+                "metadata_json": json.dumps(
+                    {
+                        "accepted_concepts": [
+                            {"id": "correctness", "accepted_terms": ["correctness", "correct", "verified"]},
+                            {
+                                "id": "prevent_regression",
+                                "accepted_terms": ["prevent regression", "avoid regressions", "consistency"],
+                            },
+                        ],
+                        "min_concepts": 1,
+                    }
+                ),
+                "hint_policy_json": json.dumps({"max_hints": 1, "hint_messages": ["Focus on reliability and consistency."]}),
+                "explanation": "Validated completion reduces unstable progression and regressions.",
+            }
+        )
+
+    return base_exercises
+
+
+def _build_initial_interactive_exercises() -> tuple[dict[str, object], ...]:
+    explicit_lab_ids = {str(item["lab_id"]) for item in _EXPLICIT_INTERACTIVE_EXERCISES}
+    generated: list[dict[str, object]] = []
+    for lab_payload in INITIAL_LABS:
+        if str(lab_payload["id"]) in explicit_lab_ids:
+            continue
+        generated.extend(_build_generated_exercises_for_lab(lab_payload))
+
+    return _EXPLICIT_INTERACTIVE_EXERCISES + tuple(generated)
+
+
+INITIAL_INTERACTIVE_EXERCISES: tuple[dict[str, object], ...] = _build_initial_interactive_exercises()
+
+
 def list_labs(db: Session) -> list[Lab]:
     return list(db.scalars(select(Lab).order_by(Lab.order_index.asc(), Lab.title.asc())))
 
@@ -229,6 +333,9 @@ SENSITIVE_METADATA_KEYS = {
     "evaluation_rule",
     "evaluation_rules",
     "rubric",
+    "grading_metadata",
+    "private_grading_metadata",
+    "evaluator_config",
     "solution",
     "solutions",
 }

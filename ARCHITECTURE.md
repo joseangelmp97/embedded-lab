@@ -203,9 +203,11 @@ Boundaries:
 
 1. Startup seeding assigns labs to paths and derives linear prerequisites inside each path using `order_index`.
 2. When the user calls lab start, the lab-progress service validates the lab prerequisite before creating a new progress row.
-3. If the prerequisite lab is not completed by the same user, start is rejected with `403`.
-4. Reopen keeps the same progress row and only changes status timestamps (no cascade cleanup of later labs in this phase).
-5. Path-level progress summaries aggregate per-path lab totals and statuses (`completed`, `in_progress`, `locked`) based on current prerequisite completion state for the same user.
+3. Prerequisites are considered satisfied only when prerequisite progress is `completed` with `completion_source=evaluation` (manual completion does not unlock progression).
+4. Manual complete is rejected for interactive labs (published exercises exist); those labs can only reach progression-valid completion via evaluation.
+5. If the prerequisite lab does not have a valid evaluation completion, start is rejected with `403`.
+6. Reopen keeps the same progress row, resets completion state for that lab, and recomputes lock status through prerequisite validation (no cascade cleanup of later labs in this phase).
+7. Path-level progress summaries aggregate per-path lab totals and statuses (`completed`, `in_progress`, `locked`) based on current prerequisite completion state for the same user.
 
 ### Path Module Catalog Read Flow
 
